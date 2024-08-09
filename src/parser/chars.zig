@@ -13,8 +13,9 @@ const CharState = struct {
     char: u8,
 
     const Self = @This();
+    pub const NotValue = void;
 
-    pub fn process(self: *Self, context: *Context) Result(u8, ParseError) {
+    pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
         const current_char = context.input[context.dirty_cursor];
         if (current_char != self.char) {
             return .{ .err = .{
@@ -41,8 +42,9 @@ const OneOfState = struct {
     chars: []const u8,
 
     const Self = @This();
+    pub const NotValue = void;
 
-    pub fn process(self: *Self, context: *Context) Result(u8, ParseError) {
+    pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
         const current_char = context.input[context.dirty_cursor];
         for (self.chars) |one_of_char| {
             if (current_char == one_of_char) {
@@ -67,24 +69,71 @@ pub fn one_of(expected_chars: []const u8) Parser(u8, OneOfState) {
     return Parser(u8, OneOfState).init(parser, OneOfState.process);
 }
 
+const CharPredicateState = struct {
+    predicate: *const fn (u8) bool,
+
+    const Self = @This();
+    pub const NotValue = void;
+
+    pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
+        const current_char = context.input[context.dirty_cursor];
+        if (self.predicate(current_char)) {
+            context.dirty_cursor += 1;
+
+            return .{ .ok = current_char };
+        }
+
+        return .{ .err = .{
+            .cursor = context.dirty_cursor,
+            .len = 1,
+            .input = context.input,
+
+            .kind = .{ .one_of = .{ .expected = self.chars, .actual = current_char } },
+        } };
+    }
+};
+
+pub fn char_predicate(predicate: fn (u8) bool) Parser(u8, CharPredicateState) {
+    const parser = CharPredicateState{ .predicate = predicate };
+    return Parser(u8, CharPredicateState).init(parser, CharPredicateState.process);
+}
+
+pub const alpha = char_predicate(std.ascii.isAlphabetic);
+pub const alphanum = char_predicate(std.ascii.isAlphanumeric);
+pub const digit = char_predicate(std.ascii.isDigit);
+pub const whitespace = char_predicate(std.ascii.isWhitespace);
+pub const hex = char_predicate(std.ascii.isHex);
+
 const testing = std.testing;
 
 test "parsing char" {
-    var parser = char('(');
+    const parser = char('(');
 
     const result, const context = parser.run("(hello) world!");
-    try testing.expectEqualDeep(Result(u8, ParseError){ .ok = '(' }, result);
+    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = '(' }, result);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
 }
 
 test "parsing one of chars" {
-    var parser = one_of(&.{ '(', ')' });
+    const parser = one_of(&.{ '(', ')' });
 
     const result, const context = parser.run("(hello) world!");
-    try testing.expectEqualDeep(Result(u8, ParseError){ .ok = '(' }, result);
+    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = '(' }, result);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
 
     const result2, const context2 = parser.run(")hello( world!");
-    try testing.expectEqualDeep(Result(u8, ParseError){ .ok = ')' }, result2);
+    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = ')' }, result2);
+    try testing.expectEqual(context2.dirty_cursor, context2.cursor);
+}
+
+test "parsing alpha" {
+    const parser = one_of(&.{ '(', ')' });
+
+    const result, const context = parser.run("(hello) world!");
+    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = '(' }, result);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+
+    const result2, const context2 = parser.run(")hello( world!");
+    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = ')' }, result2);
     try testing.expectEqual(context2.dirty_cursor, context2.cursor);
 }

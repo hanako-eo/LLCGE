@@ -12,8 +12,9 @@ const TagState = struct {
     tag: []const u8,
 
     const Self = @This();
+    pub const NotValue = void;
 
-    pub fn process(self: *Self, context: *Context) Result([]const u8, ParseError) {
+    pub fn process(self: Self, context: *Context) Result([]const u8, ParseError(void)) {
         if (!std.mem.startsWith(u8, context.input, self.tag)) {
             return .{ .err = .{
                 .cursor = context.dirty_cursor,
@@ -38,9 +39,9 @@ pub fn tag(expected_tag: []const u8) StringParser(TagState) {
 
 const testing = std.testing;
 test "parsing tag" {
-    var parser = tag("hello");
+    const parser = tag("hello");
 
     const result, const context = parser.run("hello world!");
-    try testing.expectEqualDeep(Result([]const u8, ParseError){ .ok = "hello" }, result);
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
 }

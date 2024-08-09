@@ -13,6 +13,10 @@ pub fn commit(self: *Self) void {
     self.cursor = self.dirty_cursor;
 }
 
+pub fn uncommit(self: *Self) void {
+    self.dirty_cursor = self.cursor;
+}
+
 pub fn getDirtyResidual(self: Self) []const u8 {
     return self.input[self.dirty_cursor..];
 }

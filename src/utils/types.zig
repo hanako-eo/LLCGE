@@ -10,3 +10,7 @@ pub fn Expectation(comptime E: type, comptime A: type) type {
 pub fn ExpectationSimple(comptime T: type) type {
     return Expectation(T, T);
 }
+
+pub fn Unexpectation(comptime T: type) type {
+    return T;
+}
