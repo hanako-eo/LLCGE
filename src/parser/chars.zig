@@ -4,8 +4,9 @@ const Context = @import("./context.zig");
 
 const parser_zig = @import("./parser.zig");
 const Parser = parser_zig.Parser;
-const ParseError = parser_zig.ParseError;
 const StringParser = parser_zig.StringParser;
+
+const ParseError = @import("./error.zig").ParseError;
 
 const Result = @import("../utils/types.zig").Result;
 

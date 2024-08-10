@@ -2,10 +2,11 @@ const std = @import("std");
 
 const Context = @import("./context.zig");
 
+const error_zig = @import("./error.zig");
+const ParseError = error_zig.ParseError;
+const ParseErrorKind = error_zig.ParseErrorKind;
+
 const types_zig = @import("../utils/types.zig");
-const ExpectationSimple = types_zig.ExpectationSimple;
-const Expectation = types_zig.Expectation;
-const Unexpectation = types_zig.Unexpectation;
 const Result = types_zig.Result;
 
 fn getNotValue(comptime State: type) type {
@@ -57,6 +58,12 @@ pub fn Parser(comptime T: type, comptime S: type) type {
         }
 
         // modifiers
+        pub inline fn forgot(self: Self) Parser(void, MapState(T, void, S)) {
+            return self.map(void, struct {
+                fn call(_: *const T) void {}
+            }.call);
+        }
+
         pub fn map(self: Self, comptime U: type, lambda: *const fn (T) U) Parser(U, MapState(T, U, S)) {
             const state = MapState(T, U, S){ .map = lambda, .parser = self };
             return Parser(U, MapState(T, U, S)).init(state, MapState(T, U, S).process);
@@ -104,22 +111,6 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             const state = FinishedState(T, S){ .parser = self };
             return Parser(T, FinishedState(T, S)).init(state, FinishedState(T, S).processZ);
         }
-    };
-}
-
-pub fn ParseError(comptime K: type) type {
-    return struct { cursor: usize, len: usize, input: []const u8, kind: ParseErrorKind(K) };
-}
-
-pub fn ParseErrorKind(comptime N: type) type {
-    return union(enum) {
-        tag: []const u8,
-        one_of: Expectation([]const u8, u8),
-        char: ExpectationSimple(u8),
-        satisfy: []const u8,
-        not_finished: void,
-
-        not: Unexpectation(N),
     };
 }
 
