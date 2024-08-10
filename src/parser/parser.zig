@@ -40,7 +40,7 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             return Self{ .lambda = lambda, .state = state };
         }
 
-        pub fn runWithContext(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+        pub inline fn runWithContext(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             return self.lambda(self.state, context);
         }
 
@@ -72,9 +72,37 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             return Parser(void, NotState(T, S)).init(state, NotState(T, S).process);
         }
 
-        pub fn recognize(self: Self) Parser(T, RecognizeState(T, S)) {
-            const state = RecognizeState(T, S){ .parser = self };
-            return Parser(T, RecognizeState(T, S)).init(state, RecognizeState(T, S).process);
+        pub fn recognize(self: Self) Parser(void, UnconsumerState(false, T, S)) {
+            const state = UnconsumerState(false, T, S){ .parser = self };
+            return Parser(void, UnconsumerState(false, T, S)).init(state, UnconsumerState(false, T, S).process);
+        }
+
+        pub fn peek(self: Self) Parser(T, UnconsumerState(true, T, S)) {
+            const state = UnconsumerState(true, T, S){ .parser = self };
+            return Parser(T, UnconsumerState(true, T, S)).init(state, UnconsumerState(true, T, S).process);
+        }
+
+        pub fn satisfy_fn(self: Self, lambda: *const fn (*const T) bool, message_fn: *const fn (*const T) []const u8) Parser(T, SatisfyFnState(T, S)) {
+            const state = SatisfyFnState(T, S){ .parser = self, .satisfy = lambda, .message_fn = message_fn };
+            return Parser(T, SatisfyFnState(T, S)).init(state, SatisfyFnState(T, S).process);
+        }
+
+        pub inline fn satisfy(self: Self, lambda: *const fn (*const T) bool, comptime message: []const u8) Parser(T, SatisfyFnState(T, S)) {
+            return self.satisfy_fn(lambda, struct {
+                fn call(_: *const T) []const u8 {
+                    return message;
+                }
+            }.call);
+        }
+
+        pub fn finished(self: Self) Parser(T, FinishedState(T, S)) {
+            const state = FinishedState(T, S){ .parser = self };
+            return Parser(T, FinishedState(T, S)).init(state, FinishedState(T, S).process);
+        }
+
+        pub fn finishedZ(self: Self) Parser(T, FinishedState(T, S)) {
+            const state = FinishedState(T, S){ .parser = self };
+            return Parser(T, FinishedState(T, S)).init(state, FinishedState(T, S).processZ);
         }
     };
 }
@@ -88,6 +116,8 @@ pub fn ParseErrorKind(comptime N: type) type {
         tag: []const u8,
         one_of: Expectation([]const u8, u8),
         char: ExpectationSimple(u8),
+        satisfy: []const u8,
+        not_finished: void,
 
         not: Unexpectation(N),
     };
@@ -142,24 +172,47 @@ fn NotState(comptime T: type, comptime S: type) type {
             const result = self.parser.runWithContext(context);
 
             return switch (result) {
-                .err => blk: {
+                .err => .ok,
+                .ok => |value| blk: {
                     context.uncommit();
-                    break :blk .ok;
-                },//.{.not = value}
-                .ok => |value| .{ .err = .{
-                    .cursor = context.cursor,
-                    .len = context.dirty_cursor - context.cursor,
-                    .input = context.input,
+                    break :blk .{ .err = .{
+                        .cursor = context.cursor,
+                        .len = context.dirty_cursor - context.cursor,
+                        .input = context.input,
 
-                    .kind = .{ .not = value },
-                } },
+                        .kind = .{ .not = value },
+                    } };
+                },
             };
         }
     };
 }
 
-fn RecognizeState(comptime T: type, comptime S: type) type {
+fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) type {
     return struct {
+        parser: Parser(T, S),
+
+        const Self = @This();
+        pub const NotValue = getNotValue(S);
+
+        const ReturnValue = if (peeking) T else void;
+
+        pub fn process(self: Self, context: *Context) Result(ReturnValue, ParseError(NotValue)) {
+            const result = self.parser.runWithContext(context);
+            context.uncommit();
+            if (peeking) {
+                return result;
+            } else {
+                return .ok;
+            }
+        }
+    };
+}
+
+fn SatisfyFnState(comptime T: type, comptime S: type) type {
+    return struct {
+        satisfy: *const fn (*const T) bool,
+        message_fn: *const fn (*const T) []const u8,
         parser: Parser(T, S),
 
         const Self = @This();
@@ -167,8 +220,55 @@ fn RecognizeState(comptime T: type, comptime S: type) type {
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             const result = self.parser.runWithContext(context);
-            context.uncommit();
-            return result;
+            return switch (result) {
+                .err => |err| .{ .err = err },
+                .ok => |value| if (!self.satisfy(&value)) .{ .err = .{
+                    .cursor = context.cursor,
+                    .len = context.dirty_cursor - context.cursor,
+                    .input = context.input,
+
+                    .kind = .{ .satisfy = self.message_fn(&value) },
+                } } else .{ .ok = value },
+            };
+        }
+    };
+}
+
+fn FinishedState(comptime T: type, comptime S: type) type {
+    return struct {
+        parser: Parser(T, S),
+
+        const Self = @This();
+        pub const NotValue = getNotValue(S);
+
+        pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+            return self.processImpl(context, struct {
+                fn call(ctx: *Context) bool {
+                    return ctx.input.len <= ctx.dirty_cursor;
+                }
+            }.call);
+        }
+
+        pub fn processZ(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+            return self.processImpl(context, struct {
+                fn call(ctx: *Context) bool {
+                    return ctx.input.len <= ctx.dirty_cursor or ctx.input[ctx.dirty_cursor] == 0;
+                }
+            }.call);
+        }
+
+        fn processImpl(self: Self, context: *Context, comptime predicate: fn (*Context) bool) Result(T, ParseError(NotValue)) {
+            const result = self.parser.runWithContext(context);
+            if (predicate(context))
+                return result;
+
+            return .{ .err = .{
+                .cursor = context.cursor,
+                .len = 0,
+                .input = context.input,
+
+                .kind = .not_finished,
+            } };
         }
     };
 }
@@ -220,10 +320,76 @@ test "optional parsing" {
 test "not parsing" {
     const tag = @import("./bytes.zig").tag;
 
+    const parser = tag("hello").not();
+
+    const result, const context = parser.runWithoutCommit("hello");
+    try testing.expectEqualDeep(ParseErrorKind([]const u8){ .not = "hello" }, result.err.kind);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    try testing.expectEqual(context.dirty_cursor, 0);
+
+    const result2, const context2 = parser.runWithoutCommit("world");
+    try testing.expectEqualDeep(.ok, result2);
+    try testing.expectEqual(context2.dirty_cursor, context2.cursor);
+    try testing.expectEqual(context2.dirty_cursor, 0);
+}
+
+test "recognize without peeking parsing" {
+    const tag = @import("./bytes.zig").tag;
+
     const parser = tag("hello").recognize();
+
+    const result, const context = parser.runWithoutCommit("hello");
+    try testing.expectEqualDeep(.ok, result);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    try testing.expectEqual(context.dirty_cursor, 0);
+}
+
+test "recognize with peeking parsing" {
+    const tag = @import("./bytes.zig").tag;
+
+    const parser = tag("hello").peek();
 
     const result, const context = parser.runWithoutCommit("hello");
     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
     try testing.expectEqual(context.dirty_cursor, 0);
+}
+
+fn safisfy_true(_: *const []const u8) bool {
+    return true;
+}
+
+fn safisfy_false(_: *const []const u8) bool {
+    return false;
+}
+
+test "parsing with satisfaction of condition" {
+    const tag = @import("./bytes.zig").tag;
+
+    const parser = tag("hello");
+
+    const result, _ = parser.satisfy(safisfy_true, "unexpected value").runWithoutCommit("hello");
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
+
+    const result2, _ = parser.satisfy(safisfy_false, "expected value").runWithoutCommit("hello");
+    try testing.expectEqualDeep(ParseErrorKind(void){ .satisfy = "expected value" }, result2.err.kind);
+}
+
+test "check if the parser parse all" {
+    const tag = @import("./bytes.zig").tag;
+
+    const parser = tag("hello").finished();
+    const parser2 = tag("hello").finishedZ();
+
+    const result, _ = parser.runWithoutCommit("hello");
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
+
+    const result2, _ = parser.runWithoutCommit("hello!");
+    try testing.expectEqualDeep(.not_finished, result2.err.kind);
+
+    const result3, _ = parser2.runWithoutCommit("hello");
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result3);
+
+    const result4, _ = parser2.runWithoutCommit("hello!");
+    try testing.expectEqualDeep(.not_finished, result4.err.kind);
 }
