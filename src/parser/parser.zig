@@ -32,6 +32,8 @@ pub fn Parser(comptime T: type, comptime S: type) type {
     const NotValue = getNotValue(S);
 
     return struct {
+        pub const Value = T;
+
         state: S,
         lambda: *const fn (S, *Context) Result(T, ParseError(NotValue)),
 
@@ -265,7 +267,10 @@ fn FinishedState(comptime T: type, comptime S: type) type {
 }
 
 const testing = std.testing;
+const tag = @import("./bytes.zig").tag;
+
 test "import parsing tests" {
+    _ = @import("./branch.zig");
     _ = @import("./bytes.zig");
     _ = @import("./chars.zig");
 }
@@ -276,8 +281,6 @@ fn call_map(_: []const u8) Hello {
 }
 
 test "change the result of the parsing" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello");
 
     const result, const context = parser.run("hello");
@@ -292,8 +295,6 @@ test "change the result of the parsing" {
 }
 
 test "optional parsing" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello").opt();
 
     const result, const context = parser.runWithoutCommit("hello");
@@ -309,8 +310,6 @@ test "optional parsing" {
 }
 
 test "not parsing" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello").not();
 
     const result, const context = parser.runWithoutCommit("hello");
@@ -325,8 +324,6 @@ test "not parsing" {
 }
 
 test "recognize without peeking parsing" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello").recognize();
 
     const result, const context = parser.runWithoutCommit("hello");
@@ -336,8 +333,6 @@ test "recognize without peeking parsing" {
 }
 
 test "recognize with peeking parsing" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello").peek();
 
     const result, const context = parser.runWithoutCommit("hello");
@@ -355,8 +350,6 @@ fn safisfy_false(_: *const []const u8) bool {
 }
 
 test "parsing with satisfaction of condition" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello");
 
     const result, _ = parser.satisfy(safisfy_true, "unexpected value").runWithoutCommit("hello");
@@ -367,8 +360,6 @@ test "parsing with satisfaction of condition" {
 }
 
 test "check if the parser parse all" {
-    const tag = @import("./bytes.zig").tag;
-
     const parser = tag("hello").finished();
     const parser2 = tag("hello").finishedZ();
 
