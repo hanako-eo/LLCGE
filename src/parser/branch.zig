@@ -82,7 +82,9 @@ fn ChainState(comptime Ps: type, comptime T: type) type {
             var final_result: T = undefined;
 
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
-            inline for (self.parsers, 0..) |p, i| {
+            comptime var i = 0;
+            inline for (@typeInfo(Ps).Struct.fields) |parsers_field| {
+                const p = @field(self.parsers, parsers_field.name);
                 const parse_result = p.runWithContext(context);
                 if (parse_result == .err) {
                     context.uncommit();
@@ -98,7 +100,10 @@ fn ChainState(comptime Ps: type, comptime T: type) type {
                     } };
                 }
 
-                @field(final_result, fields[i].name) = parse_result.ok;
+                if (@TypeOf(parse_result.ok) != void) {
+                    @field(final_result, fields[i].name) = parse_result.ok;
+                    i += 1;
+                }
                 context.commit();
             }
 
@@ -164,7 +169,7 @@ test "selection of a non-existent element" {
     try testing.expectEqual(0, context.dirty_cursor);
 }
 
-test "chain parsing" {
+test "chain parsing with tuple" {
     const parser = chain(.{ tag("hello"), whitespace, tag("world") }).finished();
     const result, const context = parser.runWithoutCommit("hello world");
 
@@ -172,6 +177,45 @@ test "chain parsing" {
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
 
     try testing.expectEqualDeep(.{ "hello", ' ', "world" }, result.ok);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    try testing.expectEqual(11, context.dirty_cursor);
+}
+
+test "chain parsing with inside void field" {
+    // chain need to remove void field to the result string
+    const parser = chain(.{ tag("hello"), whitespace.forgot(), tag("world") }).finished();
+    const result, const context = parser.runWithoutCommit("hello world");
+
+    if (result == .err)
+        std.debug.panic("unexpected result value, found Err({})", .{result.err});
+
+    try testing.expectEqualDeep(.{ "hello", "world" }, result.ok);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    try testing.expectEqual(11, context.dirty_cursor);
+}
+
+test "chain parsing with struct" {
+    // chain need to remove void field to the result string
+    const parser = chain(.{ .hello = tag("hello"), .space = whitespace, .world = tag("world") }).finished();
+    const result, const context = parser.runWithoutCommit("hello world");
+
+    if (result == .err)
+        std.debug.panic("unexpected result value, found Err({})", .{result.err});
+
+    try testing.expectEqualDeep(meta_zig.getStructAttribute(@TypeOf(parser), "Value"){ .hello = "hello", .space = ' ', .world = "world" }, result.ok);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    try testing.expectEqual(11, context.dirty_cursor);
+}
+
+test "chain parsing with struct and void field" {
+    // chain need to remove void field to the result string
+    const parser = chain(.{ .hello = tag("hello"), .space = whitespace.forgot(), .world = tag("world") }).finished();
+    const result, const context = parser.runWithoutCommit("hello world");
+
+    if (result == .err)
+        std.debug.panic("unexpected result value, found Err({})", .{result.err});
+
+    try testing.expectEqualDeep(meta_zig.getStructAttribute(@TypeOf(parser), "Value"){ .hello = "hello", .world = "world" }, result.ok);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
     try testing.expectEqual(11, context.dirty_cursor);
 }

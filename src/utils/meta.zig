@@ -88,17 +88,31 @@ pub fn StructFromParsers(comptime parsers: anytype) type {
     }
 
     const fields = parsers_type_info.Struct.fields;
+    const is_tuple = parsers_type_info.Struct.is_tuple;
+
     comptime var values: [fields.len]Field = undefined;
+    var real_len = 0;
 
-    inline for (fields, 0..) |f, i|
-        values[i] = .{ .name = f.name, .type = getStructAttribute(f.type, "Value") };
+    inline for (fields) |f| {
+        const T = getStructAttribute(f.type, "Value");
+        if (T == void)
+            continue;
 
-    return CreateUniqueStruct(values.len, values, parsers_type_info.Struct.is_tuple);
+        var num_buf: [128]u8 = undefined;
+        const name = if (is_tuple) std.fmt.bufPrintZ(&num_buf, "{d}", .{real_len}) catch f.name else f.name;
+
+        values[real_len] = .{ .name = name, .type = T };
+
+        real_len += 1;
+    }
+
+    return CreateUniqueStruct(real_len, &values, is_tuple);
 }
 
-pub fn CreateUniqueStruct(comptime N: usize, comptime types: [N]Field, comptime is_tuple: bool) type {
-    var struct_tuple_fields: [N]std.builtin.Type.StructField = undefined;
-    inline for (types, 0..) |field, i| {
+pub fn CreateUniqueStruct(comptime size: usize, comptime types: []Field, comptime is_tuple: bool) type {
+    var struct_tuple_fields: [size]std.builtin.Type.StructField = undefined;
+    inline for (0..size) |i| {
+        const field = types[i];
         struct_tuple_fields[i] = .{
             .name = field.name,
             .type = field.type,

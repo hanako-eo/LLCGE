@@ -62,7 +62,7 @@ pub fn Parser(comptime T: type, comptime S: type) type {
         // modifiers
         pub inline fn forgot(self: Self) Parser(void, MapState(T, void, S)) {
             return self.map(void, struct {
-                fn call(_: *const T) void {}
+                fn call(_: T) void {}
             }.call);
         }
 
