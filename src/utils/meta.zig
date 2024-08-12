@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const Field = struct { name: [:0]const u8, type: type };
+
 /// returns the smallest natural integer type as a function of the number of elements `x`
 /// Examples
 /// 0 => u0
@@ -9,9 +11,6 @@ fn minIntTagType(x: anytype) type {
     const T: type = @TypeOf(x);
     if (@typeInfo(T) != .Int or @typeInfo(T).Int.signedness != .unsigned)
         @compileError("minBitsSize requires an unsigned integer, found " ++ @typeName(T));
-
-    if (x <= 1)
-        return @intCast(x);
 
     return std.meta.Int(.unsigned, if (x <= 1) @intCast(x) else @intCast(@typeInfo(T).Int.bits - @clz(x - 1)));
 }
@@ -42,27 +41,25 @@ pub fn UnionFromParsers(comptime parsers: anytype) type {
     }
 
     const fields = parsers_type_info.Struct.fields;
-    comptime var values: [fields.len]struct { []const u8, type } = undefined;
+    comptime var values: [fields.len]Field = undefined;
 
     inline for (fields, 0..) |f, i|
-        values[i] = .{ f.name, getStructAttribute(f.type, "Value") };
+        values[i] = .{ .name = f.name, .type = getStructAttribute(f.type, "Value") };
 
     return CreateUnionEnum(values.len, values);
 }
 
-pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]struct { []const u8, type }) type {
-    var union_tuple_fields: [N]std.builtin.Type.UnionField = undefined;
+pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]Field) type {
+    var union_fields: [N]std.builtin.Type.UnionField = undefined;
     var enum_fields: [N]std.builtin.Type.EnumField = undefined;
-    inline for (types, 0..) |value, i| {
-        const name, const T = value;
-
-        union_tuple_fields[i] = .{
-            .name = name,
-            .type = T,
-            .alignment = if (@sizeOf(T) > 0) @alignOf(T) else 0,
+    inline for (types, 0..) |field, i| {
+        union_fields[i] = .{
+            .name = field.name,
+            .type = field.type,
+            .alignment = if (@sizeOf(field.type) > 0) @alignOf(field.type) else 0,
         };
 
-        enum_fields[i] = .{ .name = name, .value = i };
+        enum_fields[i] = .{ .name = field.name, .value = i };
     }
 
     const enum_type = @Type(.{ .Enum = .{
@@ -77,7 +74,47 @@ pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]struct { []const u8
             .layout = .auto,
             .tag_type = enum_type,
             .decls = &.{},
-            .fields = &union_tuple_fields,
+            .fields = &union_fields,
+        },
+    });
+}
+
+/// Transform a list of parser into a union of each value return be each parser
+pub fn StructFromParsers(comptime parsers: anytype) type {
+    const ParsersType = @TypeOf(parsers);
+    const parsers_type_info = @typeInfo(ParsersType);
+    if (parsers_type_info != .Struct) {
+        @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
+    }
+
+    const fields = parsers_type_info.Struct.fields;
+    comptime var values: [fields.len]Field = undefined;
+
+    inline for (fields, 0..) |f, i|
+        values[i] = .{ .name = f.name, .type = getStructAttribute(f.type, "Value") };
+
+    return CreateUniqueStruct(values.len, values, parsers_type_info.Struct.is_tuple);
+}
+
+pub fn CreateUniqueStruct(comptime N: usize, comptime types: [N]Field, comptime is_tuple: bool) type {
+    var struct_tuple_fields: [N]std.builtin.Type.StructField = undefined;
+    inline for (types, 0..) |field, i| {
+        struct_tuple_fields[i] = .{
+            .name = field.name,
+            .type = field.type,
+            .default_value = null,
+            .is_comptime = false,
+            .alignment = if (@sizeOf(field.type) > 0) @alignOf(field.type) else 0,
+        };
+    }
+
+    return @Type(.{
+        .Struct = .{
+            .layout = .auto,
+            .backing_integer = null,
+            .is_tuple = is_tuple,
+            .decls = &.{},
+            .fields = &struct_tuple_fields,
         },
     });
 }
