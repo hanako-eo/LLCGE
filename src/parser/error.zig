@@ -15,6 +15,7 @@ pub fn ParseErrorKind(comptime N: type) type {
         char: ExpectationSimple(u8),
         satisfy: []const u8,
         not_finished: void,
+        finished: void,
 
         not: Unexpectation(N),
     };

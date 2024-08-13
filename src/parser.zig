@@ -19,6 +19,9 @@ pub fn StringParser(comptime S: type) type {
 pub fn Parser(comptime T: type, comptime S: type) type {
     const NotValue = getStructAttribute(S, "NotValue");
 
+    if (T == u8 and !@hasDecl(S, "call"))
+        @compileError(std.fmt.comptimePrint("{0s} need to implement 'fn call({0s}, u8) bool' because it only handles one byte at a time", .{ @typeName(S) }));
+
     return struct {
         pub const Value = T;
 
@@ -26,6 +29,10 @@ pub fn Parser(comptime T: type, comptime S: type) type {
         lambda: *const fn (S, *Context) Result(T, ParseError(NotValue)),
 
         const Self = @This();
+
+        pub fn canParseOneByteAtATime() bool {
+            return T == u8;
+        }
 
         pub fn init(state: S, lambda: fn (S, *Context) Result(T, ParseError(NotValue))) Self {
             return Self{ .lambda = lambda, .state = state };
@@ -45,6 +52,10 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             const result, var context = self.runWithoutCommit(input);
             context.commit();
             return .{ result, context };
+        }
+
+        pub fn call(self: Self, c: u8) bool {
+            return self.state.call(c);
         }
 
         // modifiers

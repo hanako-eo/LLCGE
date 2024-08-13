@@ -16,6 +16,10 @@ const CharState = struct {
     const Self = @This();
     pub const NotValue = void;
 
+    pub fn call(self: Self, c: u8) bool {
+        return self.char == c;
+    }
+
     pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
         const current_char = context.input[context.dirty_cursor];
         if (current_char != self.char) {
@@ -44,6 +48,14 @@ const OneOfState = struct {
 
     const Self = @This();
     pub const NotValue = void;
+
+    pub fn call(self: Self, c: u8) bool {
+        for (self.chars) |one_of_c| {
+            if (one_of_c == c)
+                return true;
+        }
+        return false;
+    }
 
     pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
         const current_char = context.input[context.dirty_cursor];
@@ -75,6 +87,10 @@ const CharPredicateState = struct {
 
     const Self = @This();
     pub const NotValue = void;
+
+    pub fn call(self: Self, c: u8) bool {
+        return self.predicate(c);
+    }
 
     pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
         const current_char = context.input[context.dirty_cursor];
