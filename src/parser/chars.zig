@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Context = @import("./context.zig");
 
-const parser_zig = @import("./parser.zig");
+const parser_zig = @import("../parser.zig");
 const Parser = parser_zig.Parser;
 const StringParser = parser_zig.StringParser;
 

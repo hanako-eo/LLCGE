@@ -1,35 +1,23 @@
 const std = @import("std");
 
-const Context = @import("./context.zig");
+pub const branch = @import("./parser/branch.zig");
+pub const bytes = @import("./parser/bytes.zig");
+pub const chars = @import("./parser/chars.zig");
+pub const Context = @import("./parser/context.zig");
+pub const errors = @import("./parser/error.zig");
 
-const error_zig = @import("./error.zig");
-const ParseError = error_zig.ParseError;
-const ParseErrorKind = error_zig.ParseErrorKind;
+const ParseError = errors.ParseError;
+const ParseErrorKind = errors.ParseErrorKind;
 
-const types_zig = @import("../utils/types.zig");
-const Result = types_zig.Result;
+const Result = @import("./utils/types.zig").Result;
 
-fn getNotValue(comptime State: type) type {
-    const state_info = @typeInfo(State);
-
-    if (state_info != .Struct)
-        @compileError("The state need to be a structure");
-
-    const decls = state_info.Struct.decls;
-
-    for (decls) |decl| {
-        if (std.mem.eql(u8, decl.name, "NotValue"))
-            return State.NotValue;
-    }
-
-    @compileError("The structure state need to have a const 'NotValue' (a type)");
-}
+const getStructAttribute = @import("./utils/meta.zig").getStructAttribute;
 
 pub fn StringParser(comptime S: type) type {
     return Parser([]const u8, S);
 }
 pub fn Parser(comptime T: type, comptime S: type) type {
-    const NotValue = getNotValue(S);
+    const NotValue = getStructAttribute(S, "NotValue");
 
     return struct {
         pub const Value = T;
@@ -122,7 +110,7 @@ fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
         parser: Parser(T, S),
 
         const Self = @This();
-        pub const NotValue = getNotValue(S);
+        pub const NotValue = getStructAttribute(S, "NotValue");
 
         pub fn process(self: Self, context: *Context) Result(U, ParseError(NotValue)) {
             const result = self.parser.runWithContext(context);
@@ -139,7 +127,7 @@ fn OptState(comptime T: type, comptime S: type) type {
         parser: Parser(T, S),
 
         const Self = @This();
-        pub const NotValue = getNotValue(S);
+        pub const NotValue = getStructAttribute(S, "NotValue");
 
         pub fn process(self: Self, context: *Context) Result(?T, ParseError(void)) {
             const result = self.parser.runWithContext(context);
@@ -186,7 +174,7 @@ fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) t
         parser: Parser(T, S),
 
         const Self = @This();
-        pub const NotValue = getNotValue(S);
+        pub const NotValue = getStructAttribute(S, "NotValue");
 
         const ReturnValue = if (peeking) T else void;
 
@@ -209,7 +197,7 @@ fn SatisfyFnState(comptime T: type, comptime S: type) type {
         parser: Parser(T, S),
 
         const Self = @This();
-        pub const NotValue = getNotValue(S);
+        pub const NotValue = getStructAttribute(S, "NotValue");
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             const result = self.parser.runWithContext(context);
@@ -232,7 +220,7 @@ fn FinishedState(comptime T: type, comptime S: type) type {
         parser: Parser(T, S),
 
         const Self = @This();
-        pub const NotValue = getNotValue(S);
+        pub const NotValue = getStructAttribute(S, "NotValue");
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             return self.processImpl(context, struct {
@@ -266,14 +254,14 @@ fn FinishedState(comptime T: type, comptime S: type) type {
     };
 }
 
-const testing = std.testing;
-const tag = @import("./bytes.zig").tag;
-
-test "import parsing tests" {
-    _ = @import("./branch.zig");
-    _ = @import("./bytes.zig");
-    _ = @import("./chars.zig");
+test {
+    _ = branch;
+    _ = bytes;
+    _ = chars;
 }
+
+const testing = std.testing;
+const tag = bytes.tag;
 
 const Hello = struct {};
 fn call_map(_: []const u8) Hello {

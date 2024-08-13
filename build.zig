@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     //// BUILD LIB
     const lib = b.addStaticLibrary(.{
         .name = "LLCGE",
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("src/lib.zig"),
         .target = std_target,
         .optimize = std_optimize,
     });
@@ -18,7 +18,7 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run library tests");
 
     const main_tests = b.addTest(.{
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("src/lib.zig"),
         .target = std_target,
         .optimize = std_optimize,
     });

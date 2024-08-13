@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Context = @import("./context.zig");
 
-const parser_zig = @import("./parser.zig");
+const parser_zig = @import("../parser.zig");
 const Parser = parser_zig.Parser;
 
 const error_zig = @import("./error.zig");
@@ -16,15 +16,6 @@ const StructFromParsers = meta_zig.StructFromParsers;
 const LenOfParsers = meta_zig.LenOfParsers;
 
 const Result = @import("../utils/types.zig").Result;
-
-pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers), SelectState(@TypeOf(parsers), UnionFromParsers(parsers), LenOfParsers(parsers))) {
-    const ParsersType = @TypeOf(parsers);
-    const SelectUnion = UnionFromParsers(parsers);
-    const size = LenOfParsers(parsers);
-
-    const state = SelectState(ParsersType, SelectUnion, size){ .parsers = parsers };
-    return Parser(SelectUnion, SelectState(ParsersType, SelectUnion, size)).init(state, SelectState(ParsersType, SelectUnion, size).process);
-}
 
 fn SelectState(comptime Ps: type, comptime T: type, comptime size: comptime_int) type {
     return struct {
@@ -62,12 +53,13 @@ fn SelectState(comptime Ps: type, comptime T: type, comptime size: comptime_int)
     };
 }
 
-pub fn chain(comptime parsers: anytype) Parser(StructFromParsers(parsers), ChainState(@TypeOf(parsers), StructFromParsers(parsers))) {
+pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers), SelectState(@TypeOf(parsers), UnionFromParsers(parsers), LenOfParsers(parsers))) {
     const ParsersType = @TypeOf(parsers);
-    const ChainStruct = StructFromParsers(parsers);
+    const SelectUnion = UnionFromParsers(parsers);
+    const size = LenOfParsers(parsers);
 
-    const state = ChainState(ParsersType, ChainStruct){ .parsers = parsers };
-    return Parser(ChainStruct, ChainState(ParsersType, ChainStruct)).init(state, ChainState(ParsersType, ChainStruct).process);
+    const state = SelectState(ParsersType, SelectUnion, size){ .parsers = parsers };
+    return Parser(SelectUnion, SelectState(ParsersType, SelectUnion, size)).init(state, SelectState(ParsersType, SelectUnion, size).process);
 }
 
 fn ChainState(comptime Ps: type, comptime T: type) type {
@@ -110,6 +102,14 @@ fn ChainState(comptime Ps: type, comptime T: type) type {
             return .{ .ok = final_result };
         }
     };
+}
+
+pub fn chain(comptime parsers: anytype) Parser(StructFromParsers(parsers), ChainState(@TypeOf(parsers), StructFromParsers(parsers))) {
+    const ParsersType = @TypeOf(parsers);
+    const ChainStruct = StructFromParsers(parsers);
+
+    const state = ChainState(ParsersType, ChainStruct){ .parsers = parsers };
+    return Parser(ChainStruct, ChainState(ParsersType, ChainStruct)).init(state, ChainState(ParsersType, ChainStruct).process);
 }
 
 const testing = std.testing;
