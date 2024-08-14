@@ -13,6 +13,10 @@ const Result = @import("./utils/types.zig").Result;
 
 const getStructAttribute = @import("./utils/meta.zig").getStructAttribute;
 
+const owned_ref_zig = @import("./utils/owned_ref.zig");
+const OwnedRef = owned_ref_zig.OwnedRef;
+const OwnedValue = owned_ref_zig.OwnedValue;
+
 pub fn StringParser(comptime S: type) type {
     return Parser([]const u8, S);
 }
@@ -26,7 +30,7 @@ pub fn Parser(comptime T: type, comptime S: type) type {
         pub const Value = T;
 
         state: S,
-        lambda: *const fn (S, *Context) Result(T, ParseError(NotValue)),
+        lambda: OwnedRef(fn (S, *Context) Result(T, ParseError(NotValue))),
 
         const Self = @This();
 
@@ -34,12 +38,15 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             return T == u8;
         }
 
-        pub fn init(state: S, lambda: fn (S, *Context) Result(T, ParseError(NotValue))) Self {
-            return Self{ .lambda = lambda, .state = state };
+        pub fn init(state: S, comptime lambda: anytype) Self {
+            return Self{ .lambda = OwnedRef(fn (S, *Context) Result(T, ParseError(NotValue))).fromAny(lambda), .state = state };
         }
 
         pub inline fn runWithContext(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
-            return self.lambda(self.state, context);
+            return switch (self.lambda) {
+                .owned => |owned| owned(self.state, context),
+                .borrowed => |borrowed| borrowed(self.state, context),
+            };
         }
 
         pub fn runWithoutCommit(self: Self, input: []const u8) struct { Result(T, ParseError(NotValue)), Context } {
@@ -65,8 +72,14 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             }.call);
         }
 
-        pub fn map(self: Self, comptime U: type, lambda: *const fn (T) U) Parser(U, MapState(T, U, S)) {
-            const state = MapState(T, U, S){ .map = lambda, .parser = self };
+        pub inline fn value(self: Self, v: anytype) Parser(@TypeOf(v), MapState(T, @TypeOf(v), S)) {
+            return self.map(@TypeOf(v), struct {
+                fn call(_: T) @TypeOf(v) { return v; }
+            }.call);
+        }
+
+        pub fn map(self: Self, comptime U: type, lambda: anytype) Parser(U, MapState(T, U, S)) {
+            const state = MapState(T, U, S){ .map = OwnedRef(fn (T) U).fromAny(lambda), .parser = self };
             return Parser(U, MapState(T, U, S)).init(state, MapState(T, U, S).process);
         }
 
@@ -90,12 +103,12 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             return Parser(T, UnconsumerState(true, T, S)).init(state, UnconsumerState(true, T, S).process);
         }
 
-        pub fn satisfy_fn(self: Self, lambda: *const fn (*const T) bool, message_fn: *const fn (*const T) []const u8) Parser(T, SatisfyFnState(T, S)) {
-            const state = SatisfyFnState(T, S){ .parser = self, .satisfy = lambda, .message_fn = message_fn };
+        pub fn satisfy_fn(self: Self, lambda: anytype, message_fn: anytype) Parser(T, SatisfyFnState(T, S)) {
+            const state = SatisfyFnState(T, S){ .parser = self, .satisfy = OwnedRef(fn (*const T) bool).fromAny(lambda), .message_fn = OwnedRef(fn (*const T) []const u8).fromAny(message_fn) };
             return Parser(T, SatisfyFnState(T, S)).init(state, SatisfyFnState(T, S).process);
         }
 
-        pub inline fn satisfy(self: Self, lambda: *const fn (*const T) bool, comptime message: []const u8) Parser(T, SatisfyFnState(T, S)) {
+        pub inline fn satisfy(self: Self, lambda: anytype, comptime message: []const u8) Parser(T, SatisfyFnState(T, S)) {
             return self.satisfy_fn(lambda, struct {
                 fn call(_: *const T) []const u8 {
                     return message;
@@ -117,7 +130,7 @@ pub fn Parser(comptime T: type, comptime S: type) type {
 
 fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
     return struct {
-        map: *const fn (T) U,
+        map: OwnedRef(fn (T) U),
         parser: Parser(T, S),
 
         const Self = @This();
@@ -127,7 +140,10 @@ fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
             const result = self.parser.runWithContext(context);
             return switch (result) {
                 .err => |err| .{ .err = err },
-                .ok => |value| .{ .ok = self.map(value) },
+                .ok => |value| .{ .ok = switch (self.map) {
+                    .owned => |owned| owned(value),
+                    .borrowed => |borrowed| borrowed(value)
+                } },
             };
         }
     };
@@ -203,23 +219,37 @@ fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) t
 
 fn SatisfyFnState(comptime T: type, comptime S: type) type {
     return struct {
-        satisfy: *const fn (*const T) bool,
-        message_fn: *const fn (*const T) []const u8,
+        satisfy: OwnedRef(fn (*const T) bool),
+        message_fn: OwnedRef(fn (*const T) []const u8),
         parser: Parser(T, S),
 
         const Self = @This();
         pub const NotValue = getStructAttribute(S, "NotValue");
 
+        fn @"test"(self: Self, value: *const T) bool {
+            return switch (self.satisfy) {
+                .owned => |owned| owned(value),
+                .borrowed => |borrowed| borrowed(value),
+            };
+        }
+
+        fn getMessage(self: Self, value: *const T) []const u8 {
+            return switch (self.message_fn) {
+                .owned => |owned| owned(value),
+                .borrowed => |borrowed| borrowed(value),
+            };
+        }
+
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             const result = self.parser.runWithContext(context);
             return switch (result) {
                 .err => |err| .{ .err = err },
-                .ok => |value| if (!self.satisfy(&value)) .{ .err = .{
+                .ok => |value| if (!self.@"test"(&value)) .{ .err = .{
                     .cursor = context.cursor,
                     .len = context.dirty_cursor - context.cursor,
                     .input = context.input,
 
-                    .kind = .{ .satisfy = self.message_fn(&value) },
+                    .kind = .{ .satisfy = self.getMessage(&value) },
                 } } else .{ .ok = value },
             };
         }

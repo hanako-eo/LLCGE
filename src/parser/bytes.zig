@@ -11,6 +11,9 @@ const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
 const getStructAttribute = @import("../utils/meta.zig").getStructAttribute;
+const owned_ref_zig = @import("../utils/owned_ref.zig");
+const OwnedRef = owned_ref_zig.OwnedRef;
+const OwnedValue = owned_ref_zig.OwnedValue;
 
 const Result = @import("../utils/types.zig").Result;
 
@@ -43,18 +46,15 @@ pub fn tag(expected_tag: []const u8) StringParser(TagState) {
 }
 
 const TakeWhileState = struct {
-    predicate: union(enum) {
-        lambda: fn (u8) bool,
-        fn_ptr: *const fn (u8) bool,
-    },
+    predicate: OwnedRef(fn (u8) bool),
 
     const Self = @This();
     pub const NotValue = void;
 
     fn testChar(self: Self, char: u8) bool {
         return switch (self.predicate) {
-            .lambda => |lambda| lambda(char),
-            .fn_ptr => |fn_ptr| fn_ptr(char),
+            .owned => |owned| owned(char),
+            .borrowed => |borrowed| borrowed(char),
         };
     }
 
@@ -79,26 +79,24 @@ const TakeWhileState = struct {
 
 pub fn take_while(predicate: anytype) StringParser(TakeWhileState) {
     const PredicateParser = @TypeOf(predicate);
-    const state = if (PredicateParser == fn (u8) bool)
-        TakeWhileState{ .predicate = .{ .lambda = predicate } }
-    else if (PredicateParser == *const fn (u8) bool)
-        TakeWhileState{ .predicate = .{ .fn_ptr = predicate } }
+    const state = if (PredicateParser == fn (u8) bool or PredicateParser == *const fn (u8) bool)
+        TakeWhileState{ .predicate = OwnedRef(fn (u8) bool).fromAny(predicate) }
     else cond: {
         if (!@hasDecl(PredicateParser, "canParseOneByteAtATime") and !PredicateParser.canParseOneByteAtATime())
             @compileError(std.fmt.comptimePrint("{s} is not a Parser or it can parse more then one byte", .{@typeName(PredicateParser)}));
 
-        break :cond TakeWhileState{ .predicate = .{ .lambda = struct {
+        break :cond TakeWhileState{ .predicate = OwnedValue(struct {
             fn call(c: u8) bool {
                 return predicate.call(c);
             }
-        }.call } };
+        }.call) };
     };
 
     return StringParser(TakeWhileState).init(state, TakeWhileState.process);
 }
 
 pub fn take_until(predicate: anytype) StringParser(TakeWhileState) {
-    const state = TakeWhileState{ .predicate = .{ .lambda = struct {
+    const state = TakeWhileState{ .predicate = OwnedValue(struct {
         fn call(c: u8) bool {
             const PredicateParser = @TypeOf(predicate);
             return !(if (PredicateParser == fn (u8) bool or PredicateParser == *const fn (u8) bool)
@@ -106,7 +104,7 @@ pub fn take_until(predicate: anytype) StringParser(TakeWhileState) {
             else
                 predicate.call(c));
         }
-    }.call } };
+    }.call) };
 
     return StringParser(TakeWhileState).init(state, TakeWhileState.process);
 }
