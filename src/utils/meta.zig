@@ -32,18 +32,42 @@ pub fn getStructAttribute(comptime StructType: type, comptime attribute_name: []
     @compileError(std.fmt.comptimePrint("The structure {s} need to have a const '{s}' (a type)", .{ @typeName(StructType), attribute_name }));
 }
 
+/// Check in a list of parser if each parser has the same Value
+pub fn ParsersCommonValue(comptime parsers: anytype) type {
+    const ParsersType = @TypeOf(parsers);
+    const parsers_type_info = @typeInfo(ParsersType);
+    if (parsers_type_info != .Struct)
+        @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
+
+    const fields = parsers_type_info.Struct.fields;
+    if (fields.len == 0)
+        @compileError("expected to have elements but the tuple or struct is empty");
+
+    const result_type_value = getStructAttribute(fields[0].type, "Value");
+
+    for (fields[1..]) |f| {
+        const field_type_value = getStructAttribute(f.type, "Value");
+        if (result_type_value != field_type_value)
+            @compileError(std.fmt.comptimePrint("incompatible types: '{s}' and '{s}'", .{ @typeName(result_type_value), @typeName(field_type_value) }));
+    }
+
+    return result_type_value;
+}
+
 /// Transform a list of parser into a union of each value return be each parser
 pub fn UnionFromParsers(comptime parsers: anytype) type {
     const ParsersType = @TypeOf(parsers);
     const parsers_type_info = @typeInfo(ParsersType);
-    if (parsers_type_info != .Struct) {
+    if (parsers_type_info != .Struct)
         @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
-    }
 
     const fields = parsers_type_info.Struct.fields;
+    if (fields.len == 0)
+        @compileError("expected to have elements but the tuple or struct is empty");
+
     comptime var values: [fields.len]Field = undefined;
 
-    inline for (fields, 0..) |f, i|
+    for (fields, 0..) |f, i|
         values[i] = .{ .name = f.name, .type = getStructAttribute(f.type, "Value") };
 
     return CreateUnionEnum(values.len, values);
@@ -52,7 +76,7 @@ pub fn UnionFromParsers(comptime parsers: anytype) type {
 pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]Field) type {
     var union_fields: [N]std.builtin.Type.UnionField = undefined;
     var enum_fields: [N]std.builtin.Type.EnumField = undefined;
-    inline for (types, 0..) |field, i| {
+    for (types, 0..) |field, i| {
         union_fields[i] = .{
             .name = field.name,
             .type = field.type,
@@ -93,7 +117,7 @@ pub fn StructFromParsers(comptime parsers: anytype) type {
     comptime var values: [fields.len]Field = undefined;
     var real_len = 0;
 
-    inline for (fields) |f| {
+    for (fields) |f| {
         const T = getStructAttribute(f.type, "Value");
         if (T == void)
             continue;
@@ -111,7 +135,7 @@ pub fn StructFromParsers(comptime parsers: anytype) type {
 
 pub fn CreateUniqueStruct(comptime size: usize, comptime types: []Field, comptime is_tuple: bool) type {
     var struct_tuple_fields: [size]std.builtin.Type.StructField = undefined;
-    inline for (0..size) |i| {
+    for (0..size) |i| {
         const field = types[i];
         struct_tuple_fields[i] = .{
             .name = field.name,
@@ -133,13 +157,28 @@ pub fn CreateUniqueStruct(comptime size: usize, comptime types: []Field, comptim
     });
 }
 
-pub fn LenOfParsers(comptime parsers: anytype) comptime_int {
-    const ParsersType = @TypeOf(parsers);
-    const parsers_type_info = @typeInfo(ParsersType);
+pub fn StructLen(comptime T: type) comptime_int {
+    const parsers_type_info = @typeInfo(T);
     if (parsers_type_info != .Struct) {
-        @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
+        @compileError("expected tuple or struct argument, found " ++ @typeName(T));
     }
 
     const fields = parsers_type_info.Struct.fields;
     return fields.len;
+}
+
+pub fn getReturnType(comptime T: type) type {
+    const info = @typeInfo(T);
+    if (info != .Fn)
+        @compileError(std.fmt.comptimePrint("'{s}' is not a function type", .{@typeName(T)}));
+
+    return info.Fn.return_type.?;
+}
+
+pub fn PtrTypeOf(comptime T: type) type {
+    const T_info = @typeInfo(T);
+    if (T_info != .Pointer)
+        @compileError(std.fmt.comptimePrint("'{s}' is not a pointer", .{@typeName(T)}));
+
+    return T_info.Pointer.child;
 }

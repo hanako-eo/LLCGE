@@ -1,3 +1,6 @@
+const std = @import("std");
+const AllocatorError = std.mem.Allocator.Error;
+
 const types_zig = @import("../utils/types.zig");
 const ExpectationSimple = types_zig.ExpectationSimple;
 const Expectation = types_zig.Expectation;
@@ -16,6 +19,8 @@ pub fn ParseErrorKind(comptime N: type) type {
         satisfy: []const u8,
         not_finished: void,
         finished: void,
+
+        allocation_error: AllocatorError,
 
         not: Unexpectation(N),
     };

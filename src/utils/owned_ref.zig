@@ -11,9 +11,9 @@ pub fn OwnedRef(comptime T: type) type {
         const Self = @This();
 
         pub fn fromAny(comptime value: anytype) OwnedRef(T) {
-            return if (@TypeOf(value) == T) .{ .owned = value }
-            else if (@TypeOf(value) == *const T or @TypeOf(value) == *T) .{ .borrowed = value }
-            else @compileError(std.fmt.comptimePrint("{} is not of type '{1s}', '*{1s}' or '*const {1s}'", .{value, @typeName(T)}));
+            return if (@TypeOf(value) == T) .{ .owned = @as(T, value) }
+            else if (@TypeOf(value) == *const T or @TypeOf(value) == *T) .{ .borrowed = @as(*const T, value) }
+            else @compileError(std.fmt.comptimePrint("'{s}' is not of type '{1s}', '*{1s}' or '*const {1s}'", .{ @typeName(@TypeOf(value)), @typeName(T) }));
         }
     };
 }

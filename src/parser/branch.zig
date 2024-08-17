@@ -12,12 +12,15 @@ const ParseErrorKind = error_zig.ParseErrorKind;
 const meta_zig = @import("../utils/meta.zig");
 const getStructAttribute = meta_zig.getStructAttribute;
 const UnionFromParsers = meta_zig.UnionFromParsers;
+const ParsersCommonValue = meta_zig.ParsersCommonValue;
 const StructFromParsers = meta_zig.StructFromParsers;
-const LenOfParsers = meta_zig.LenOfParsers;
+const StructLen = meta_zig.StructLen;
 
 const Result = @import("../utils/types.zig").Result;
 
-fn SelectState(comptime Ps: type, comptime T: type, comptime size: comptime_int) type {
+fn SelectState(comptime Ps: type, comptime T: type) type {
+    const size = StructLen(Ps);
+
     return struct {
         parsers: Ps,
 
@@ -53,13 +56,65 @@ fn SelectState(comptime Ps: type, comptime T: type, comptime size: comptime_int)
     };
 }
 
-pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers), SelectState(@TypeOf(parsers), UnionFromParsers(parsers), LenOfParsers(parsers))) {
+pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers), SelectState(@TypeOf(parsers), UnionFromParsers(parsers))) {
     const ParsersType = @TypeOf(parsers);
     const SelectUnion = UnionFromParsers(parsers);
-    const size = LenOfParsers(parsers);
 
-    const state = SelectState(ParsersType, SelectUnion, size){ .parsers = parsers };
-    return Parser(SelectUnion, SelectState(ParsersType, SelectUnion, size)).init(state, SelectState(ParsersType, SelectUnion, size).process);
+    const state = SelectState(ParsersType, SelectUnion){ .parsers = parsers };
+    return Parser(SelectUnion, SelectState(ParsersType, SelectUnion)).init(state, SelectState(ParsersType, SelectUnion).process);
+}
+
+fn ChoiceState(comptime Ps: type, comptime T: type) type {
+    const size = StructLen(Ps);
+
+    return struct {
+        parsers: Ps,
+
+        const Self = @This();
+        pub const NotValue = void;
+
+        pub fn call(self: Self, c: u8) bool {
+            inline for (self.parsers) |p| {
+                if (p.call(c))
+                    return true;
+            }
+
+            return false;
+        }
+
+        pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+            // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
+            inline for (self.parsers, 0..) |p, i| {
+                const result = p.runWithContext(context);
+                if (result == .ok) {
+                    context.commit();
+                    return result;
+                }
+
+                context.uncommit();
+                if (i + 1 == size) {
+                    return .{ .err = .{
+                        .cursor = result.err.cursor,
+                        .len = result.err.len,
+                        .input = result.err.input,
+
+                        .kind = switch (result.err.kind) {
+                            .not => .not,
+                            else => result.err.kind,
+                        },
+                    } };
+                }
+            }
+        }
+    };
+}
+
+pub fn choice(comptime parsers: anytype) Parser(ParsersCommonValue(parsers), ChoiceState(@TypeOf(parsers), ParsersCommonValue(parsers))) {
+    const ParsersType = @TypeOf(parsers);
+    const CommonValue = ParsersCommonValue(parsers);
+
+    const state = ChoiceState(ParsersType, CommonValue){ .parsers = parsers };
+    return Parser(CommonValue, ChoiceState(ParsersType, CommonValue)).init(state, ChoiceState(ParsersType, CommonValue).process);
 }
 
 fn ChainState(comptime Ps: type, comptime T: type) type {
@@ -218,4 +273,15 @@ test "chain parsing with struct and void field" {
     try testing.expectEqualDeep(meta_zig.getStructAttribute(@TypeOf(parser), "Value"){ .hello = "hello", .world = "world" }, result.ok);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
     try testing.expectEqual(11, context.dirty_cursor);
+}
+
+test "chose the first element out of three" {
+    const parser = choice(.{ tag("hello"), tag("hi"), tag("hey") });
+    const result, const context = parser.runWithoutCommit("hello");
+
+    if (result == .err)
+        std.debug.panic("unexpected result value, found Err({})", .{result.err});
+
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
+    try testing.expectEqual(5, context.cursor);
 }

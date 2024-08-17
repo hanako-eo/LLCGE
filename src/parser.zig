@@ -67,14 +67,18 @@ pub fn Parser(comptime T: type, comptime S: type) type {
 
         // modifiers
         pub inline fn forgot(self: Self) Parser(void, MapState(T, void, S)) {
-            return self.map(void, struct {
-                fn call(_: T) void {}
+            return self.value(void, void{});
+        }
+
+        pub inline fn intoArray(self: Self) Parser([]const T, MapState(T, []const T, S)) {
+            return self.map([]const T, struct {
+                fn call(v: T) []const T { return .{v}; }
             }.call);
         }
 
-        pub inline fn value(self: Self, v: anytype) Parser(@TypeOf(v), MapState(T, @TypeOf(v), S)) {
-            return self.map(@TypeOf(v), struct {
-                fn call(_: T) @TypeOf(v) { return v; }
+        pub inline fn value(self: Self, comptime U: type, v: U) Parser(U, MapState(T, U, S)) {
+            return self.map(U, struct {
+                fn call(_: T) U { return v; }
             }.call);
         }
 
@@ -135,6 +139,10 @@ fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
 
         const Self = @This();
         pub const NotValue = getStructAttribute(S, "NotValue");
+        
+        pub fn call(self: Self, c: u8) bool {
+            return self.parser.call(c);
+        }
 
         pub fn process(self: Self, context: *Context) Result(U, ParseError(NotValue)) {
             const result = self.parser.runWithContext(context);
@@ -155,6 +163,10 @@ fn OptState(comptime T: type, comptime S: type) type {
 
         const Self = @This();
         pub const NotValue = getStructAttribute(S, "NotValue");
+
+        pub fn call(self: Self, c: u8) bool {
+            return self.parser.call(c);
+        }
 
         pub fn process(self: Self, context: *Context) Result(?T, ParseError(void)) {
             const result = self.parser.runWithContext(context);
@@ -205,6 +217,10 @@ fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) t
 
         const ReturnValue = if (peeking) T else void;
 
+        pub fn call(self: Self, c: u8) bool {
+            return self.parser.call(c);
+        }
+
         pub fn process(self: Self, context: *Context) Result(ReturnValue, ParseError(NotValue)) {
             const result = self.parser.runWithContext(context);
             context.uncommit();
@@ -225,6 +241,10 @@ fn SatisfyFnState(comptime T: type, comptime S: type) type {
 
         const Self = @This();
         pub const NotValue = getStructAttribute(S, "NotValue");
+
+        pub fn call(self: Self, c: u8) bool {
+            return self.parser.call(c);
+        }
 
         fn @"test"(self: Self, value: *const T) bool {
             return switch (self.satisfy) {
@@ -262,6 +282,10 @@ fn FinishedState(comptime T: type, comptime S: type) type {
 
         const Self = @This();
         pub const NotValue = getStructAttribute(S, "NotValue");
+
+        pub fn call(self: Self, c: u8) bool {
+            return self.parser.call(c);
+        }
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             return self.processImpl(context, struct {

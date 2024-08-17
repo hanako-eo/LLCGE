@@ -115,6 +115,11 @@ pub fn char_predicate(predicate: fn (u8) bool) Parser(u8, CharPredicateState) {
     return Parser(u8, CharPredicateState).init(parser, CharPredicateState.process);
 }
 
+pub const any_char = char_predicate(struct {
+    fn call(_: u8) bool {
+        return true;
+    }
+}.call);
 pub const alpha = char_predicate(std.ascii.isAlphabetic);
 pub const alphanum = char_predicate(std.ascii.isAlphanumeric);
 pub const digit = char_predicate(std.ascii.isDigit);
