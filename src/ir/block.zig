@@ -1,21 +1,31 @@
 const std = @import("std");
 
-const Module = @import("./module.zig");
-// const Type = @import("./types.zig").Type;
-const Instruction = @import("./instruction.zig").Instruction;
+const Error = @import("./error.zig").Error;
 
-module: *Module,
+const Function = @import("./function.zig");
+const instruction_zig = @import("./instruction.zig");
+const Instruction = instruction_zig.Instruction;
+const OpCode = instruction_zig.OpCode;
+
+parent: *Function,
 
 number: usize,
 instructions: std.ArrayList(Instruction),
 
 const Self = @This();
 
-pub fn init(module: *Module, number: usize) Self {
+pub fn init(parent: *Function, number: usize) Self {
     return Self{
-        .module = module,
+        .parent = parent,
 
         .number = number,
-        .instructions = std.ArrayList(Instruction).init(module.allocator),
+        .instructions = std.ArrayList(Instruction).init(parent.module.allocator),
     };
+}
+
+pub fn addInstruction(self: *Self, op_code: OpCode) Error!*Instruction {
+    const index = self.instructions.items.len;
+    try self.instructions.append(Instruction{ .parent = self, .number = index, .op_code = op_code });
+
+    return &self.instructions.items[index];
 }

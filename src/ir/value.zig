@@ -8,19 +8,33 @@ pub const Constant = union(enum) {
     uint: usize,
     array: []const Constant,
 
+    null_ptr: void,
     zero_initializer: void,
+};
+
+pub const Ref = union(enum) {
+    argument: *FunctionArgument,
+    global: *Global,
+    instruction: *Instruction,
 };
 
 pub const Value = struct {
     type: Type,
-    value: Constant,
-};
-
-pub const Ref = struct {
-    type: Type,
-    ref: union(enum) {
-        argument: *FunctionArgument,
-        global: *Global,
-        instruction: *Instruction,
+    value: union(enum) {
+        constant: Constant,
+        ref: Ref,
     },
+
+    const Self = @This();
+    pub const Void = Self{
+        .type = .void,
+        .value = .{ .constant = .zero_initializer },
+    };
+
+    pub fn fromInstruction(@"type": Type, instruction: *Instruction) Self {
+        return Self{
+            .type = @"type",
+            .value = .{ .ref = .{ .instruction = instruction } },
+        };
+    }
 };

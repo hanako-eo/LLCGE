@@ -6,7 +6,7 @@ const Error = @import("./error.zig").Error;
 const Type = @import("./types.zig").Type;
 const FunctionType = @import("./types/function.zig");
 
-const Value = @import("./value.zig").Value;
+const Constant = @import("./value.zig").Constant;
 const Function = @import("./function.zig");
 const Global = @import("./global.zig");
 
@@ -18,11 +18,11 @@ functions: std.StringHashMap(Function),
 
 const Self = @This();
 
-pub fn createGlobal(self: *Self, name: []const u8, is_constant: bool, value: Value) Error!*Global {
+pub fn createGlobal(self: *Self, name: []const u8, is_constant: bool, @"type": Type, value: Constant) Error!*Global {
     if (self.globals.contains(name))
         return Error.AlreadyDefine;
 
-    const entry = try self.globals.getOrPutValue(name, Global.init(self, is_constant, value));
+    const entry = try self.globals.getOrPutValue(name, Global.init(self, is_constant, @"type", value));
     return entry.value_ptr;
 }
 

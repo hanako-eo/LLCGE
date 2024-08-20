@@ -1,7 +1,9 @@
 const Type = @import("./types.zig").Type;
 
 const Module = @import("./module.zig");
-const Value = @import("./value.zig").Value;
+const value_zig = @import("./value.zig");
+const Constant = value_zig.Constant;
+const Value = value_zig.Value;
 
 module: *Module,
 
@@ -10,10 +12,14 @@ value: Value,
 
 const Self = @This();
 
-pub fn init(module: *Module, is_constant: bool, value: Value) Self {
+pub fn init(module: *Module, is_constant: bool, @"type": Type, value: Constant) Self {
     return Self{
         .module = module,
         .is_constant = is_constant,
-        .value = value,
+        .value = Value{ .type = @"type", .value = .{ .constant = value } },
     };
+}
+
+pub fn getValue(self: *Self) Value {
+    return Value{ .type = self.value.type, .value = .{ .ref = .{ .global = self } } };
 }
