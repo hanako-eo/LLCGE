@@ -31,10 +31,24 @@ pub const Value = struct {
         .value = .{ .constant = .zero_initializer },
     };
 
-    pub fn fromInstruction(@"type": Type, instruction: *Instruction) Self {
+    pub fn argument(@"type": Type, argument_ptr: *FunctionArgument) Self {
         return Self{
             .type = @"type",
-            .value = .{ .ref = .{ .instruction = instruction } },
+            .value = .{ .ref = .{ .argument = argument_ptr } },
+        };
+    }
+
+    pub fn global(@"type": Type, global_ptr: *Global) Self {
+        return Self{
+            .type = @"type",
+            .value = .{ .ref = .{ .global = global_ptr } },
+        };
+    }
+
+    pub fn instruction(@"type": Type, instruction_ptr: *Instruction) Self {
+        return Self{
+            .type = @"type",
+            .value = .{ .ref = .{ .instruction = instruction_ptr } },
         };
     }
 };
