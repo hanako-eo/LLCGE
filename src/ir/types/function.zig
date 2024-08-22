@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Type = @import("../types.zig").Type;
 
-return_type: Type,
+return_type: *Type,
 params: []const Type,
 
 const Self = @This();

@@ -119,7 +119,7 @@ pub const OpCode = union(enum) {
     fn getPtrChild(t: Type) Type {
         return switch (t) {
             inline .array, .pointer => |ptr| ptr.child,
-            else => unreachable
+            else => unreachable,
         };
     }
 

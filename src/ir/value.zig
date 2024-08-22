@@ -1,7 +1,9 @@
+const std = @import("std");
+
 const Type = @import("./types.zig").Type;
 const FunctionArgument = @import("./function.zig").Argument;
 const Global = @import("./global.zig");
-const Instruction = @import("./instruction.zig");
+const Instruction = @import("./instruction.zig").Instruction;
 
 pub const Constant = union(enum) {
     int: isize,
@@ -10,6 +12,35 @@ pub const Constant = union(enum) {
 
     null_ptr: void,
     zero_initializer: void,
+
+    const Self = @This();
+
+    pub fn format(
+        self: Self,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        switch (self) {
+            .int => |int| try writer.print("{}", .{int}),
+            .uint => |int| try writer.print("{}", .{int}),
+            .array => |array| {
+                try writer.writeByte('[');
+                if (array.len > 0) {
+                    for (array[0 .. array.len - 1]) |constant| {
+                        try writer.print("{}, ", .{constant});
+                    }
+                    try writer.print("{}", .{array[array.len - 1]});
+                }
+                try writer.writeByte(']');
+            },
+            .null_ptr => try writer.writeAll("null"),
+            .zero_initializer => try writer.writeAll("zero_initializer"),
+        }
+    }
 };
 
 pub const Ref = union(enum) {
@@ -49,6 +80,25 @@ pub const Value = struct {
         return Self{
             .type = @"type",
             .value = .{ .ref = .{ .instruction = instruction_ptr } },
+        };
+    }
+
+    pub fn format(
+        self: Self,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        try writer.print("{} ", .{self.type});
+        try switch (self.value) {
+            .constant => |c| writer.print("{}", .{c}),
+            .ref => |r| switch (r) {
+                inline .argument, .instruction => |inst| writer.print("%{}", .{inst.number}),
+                .global => |glob| writer.print("@{s}", .{glob.name}),
+            },
         };
     }
 };

@@ -14,9 +14,10 @@ pub const Argument = struct {
 
 module: *Module,
 
+index: usize,
 return_type: Type,
 args: std.ArrayList(Argument),
-blocks: std.StringHashMap(Block),
+blocks: std.ArrayList(Block),
 
 const Self = @This();
 
@@ -31,15 +32,15 @@ pub fn init(module: *Module, return_type: Type) Self {
 }
 
 pub fn addArgument(self: *Self, @"type": Type) Error!*Argument {
-    const index = self.args.items.len;
-    try self.args.append(Argument{ .number = index, .parent = self, .type = @"type" });
+    try self.args.append(Argument{ .number = self.index, .parent = self, .type = @"type" });
+    self.index += 1;
 
-    return &self.args.items[index];
+    return &self.args.items[self.args.items.len - 1];
 }
 
 pub fn createBlock(self: *Self) Error!*Block {
-    const index = self.blocks.items.len;
-    try self.blocks.append(Block.init(self.module, index));
+    try self.blocks.append(Block.init(self.module, self.index));
+    self.index += 1;
 
-    return &self.blocks.items[index];
+    return &self.blocks.items[self.blocks.items.len - 1];
 }

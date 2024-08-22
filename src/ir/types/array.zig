@@ -1,6 +1,6 @@
 const Type = @import("../types.zig").Type;
 
-child: Type,
+child: *Type,
 size: usize,
 
 const Self = @This();

@@ -1,4 +1,4 @@
-signed: bool,
+signed: bool = true,
 bits: u16,
 
 const Self = @This();
