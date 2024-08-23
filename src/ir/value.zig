@@ -21,19 +21,29 @@ pub const Constant = union(enum) {
         options: std.fmt.FormatOptions,
         writer: anytype,
     ) !void {
-        _ = fmt;
         _ = options;
 
         switch (self) {
-            .int => |int| try writer.print("{}", .{int}),
-            .uint => |int| try writer.print("{}", .{int}),
+            inline .int, .uint => |int| {
+                if (std.mem.eql(u8, fmt, "c"))
+                    try writer.print("{c}", .{@as(u8, @truncate(@as(usize, @bitCast(int))))})
+                else
+                    try writer.print("{d}", .{int});
+            },
             .array => |array| {
-                try writer.writeByte('[');
-                if (array.len > 0) {
-                    for (array[0 .. array.len - 1]) |constant| {
-                        try writer.print("{}, ", .{constant});
+                if (std.mem.eql(u8, fmt, "s")) {
+                    try writer.writeByte('"');
+                    for (array) |char| {
+                        try writer.print("{c}", .{char});
                     }
-                    try writer.print("{}", .{array[array.len - 1]});
+                    try writer.writeByte('"');
+                }
+                try writer.writeByte('[');
+                for (array, 0..) |constant, i| {
+                    try if (i == 0)
+                        writer.print("{}", .{constant})
+                    else
+                        writer.print(", {}", .{constant});
                 }
                 try writer.writeByte(']');
             },
@@ -83,6 +93,13 @@ pub const Value = struct {
         };
     }
 
+    fn isString(t: Type) bool {
+        return (t == .array or t == .pointer) and switch (t) {
+            inline .array, .pointer => |ptr| ptr.child.* == .int and ptr.child.int.bits == 8,
+            else => unreachable,
+        };
+    }
+
     pub fn format(
         self: Self,
         comptime fmt: []const u8,
@@ -94,7 +111,7 @@ pub const Value = struct {
 
         try writer.print("{} ", .{self.type});
         try switch (self.value) {
-            .constant => |c| writer.print("{}", .{c}),
+            .constant => |c| if (isString(self.type)) writer.print("{s}", .{c}) else writer.print("{}", .{c}),
             .ref => |r| switch (r) {
                 inline .argument, .instruction => |inst| writer.print("%{}", .{inst.number}),
                 .global => |glob| writer.print("@{s}", .{glob.name}),

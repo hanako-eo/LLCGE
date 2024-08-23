@@ -9,9 +9,9 @@ pub const OpCode = union(enum) {
         type: Type,
         size: usize,
 
-        pub fn init(@"type": Type, size: usize) @This() {
+        pub fn init(@"type": Type, size: usize) Self {
             std.debug.assert(size > 0);
-            return .{ .type = @"type", .size = size };
+            return .{ .alloca = .{ .type = @"type", .size = size } };
         }
     };
 
@@ -19,11 +19,11 @@ pub const OpCode = union(enum) {
         element: Type,
         pointer: Value,
 
-        pub fn init(element: Type, pointer: Value) @This() {
+        pub fn init(element: Type, pointer: Value) Self {
             std.debug.assert(pointer.type == .pointer);
-            std.debug.assert(pointer.type.pointer.child == element);
+            std.debug.assert(pointer.type.pointer.child.eq(element));
 
-            return .{ .element = element, .pointer = pointer };
+            return .{ .load = .{ .element = element, .pointer = pointer } };
         }
     };
 
@@ -31,11 +31,11 @@ pub const OpCode = union(enum) {
         pointer: Value,
         value: Value,
 
-        pub fn init(pointer: Value, value: Value) @This() {
+        pub fn init(pointer: Value, value: Value) Self {
             std.debug.assert(pointer.type == .pointer);
-            std.debug.assert(pointer.type.pointer.child == value.type);
+            std.debug.assert(pointer.type.pointer.child.* == value.type);
 
-            return .{ .pointer = pointer, .value = value };
+            return .{ .store = .{ .pointer = pointer, .value = value } };
         }
     };
 
@@ -43,12 +43,12 @@ pub const OpCode = union(enum) {
         pointer: Value,
         indexes: []const Value,
 
-        pub fn init(pointer: Value, indexes: []const Value) @This() {
+        pub fn init(pointer: Value, indexes: []const Value) Self {
             std.debug.assert(pointer.type == .array or pointer.type == .pointer);
             for (indexes) |index|
                 std.debug.assert(index.type == .int);
 
-            return .{ .pointer = pointer, .indexes = indexes };
+            return .{ .access_ptr = .{ .pointer = pointer, .indexes = indexes } };
         }
     };
 
@@ -56,12 +56,12 @@ pub const OpCode = union(enum) {
         pointer: Value,
         indexes: []const Value,
 
-        pub fn init(pointer: Value, indexes: []const Value) @This() {
+        pub fn init(pointer: Value, indexes: []const Value) Self {
             std.debug.assert(pointer.type == .array or pointer.type == .pointer);
             for (indexes) |index|
                 std.debug.assert(index.type == .int);
 
-            return .{ .pointer = pointer, .indexes = indexes };
+            return .{ .access = .{ .pointer = pointer, .indexes = indexes } };
         }
     };
 
@@ -69,18 +69,18 @@ pub const OpCode = union(enum) {
         result_type: Type,
         base: Value,
 
-        pub fn init(result_type: Type, base: Value) @This() {
+        pub fn init(result_type: Type, base: Value) Self {
             std.debug.assert(base.type.castable(result_type));
 
-            return .{ .result_type = result_type, .base = base };
+            return .{ .cast = .{ .result_type = result_type, .base = base } };
         }
     };
 
     pub const Return = struct {
         value: Value,
 
-        pub fn init(value: ?Value) @This() {
-            return .{ .value = value orelse Value.Void };
+        pub fn init(value: ?Value) Self {
+            return .{ .ret = .{ .value = value orelse Value.Void } };
         }
     };
 
@@ -99,24 +99,7 @@ pub const OpCode = union(enum) {
 
     const Self = @This();
 
-    pub fn init(comptime op_code: anytype) Self {
-        return switch (@TypeOf(op_code)) {
-            // Memory Access and Addressing Operands
-            Alloca => .{ .alloca = op_code },
-            Load => .{ .load = op_code },
-            Store => .{ .store = op_code },
-            Access => .{ .access = op_code },
-            AccessPtr => .{ .access_ptr = op_code },
-
-            // Type Operations
-            Cast => .{ .cast = op_code },
-
-            // Control Flow Operands
-            Return => .{ .ret = op_code },
-        };
-    }
-
-    fn getPtrChild(t: Type) Type {
+    fn getPtrChild(t: Type) *Type {
         return switch (t) {
             inline .array, .pointer => |ptr| ptr.child,
             else => unreachable,
@@ -125,10 +108,10 @@ pub const OpCode = union(enum) {
 
     pub fn getReturnValue(self: Self, instruction: *Instruction) Value {
         return switch (self) {
-            .alloca => |alloca| Value.instruction(alloca, instruction),
+            .alloca => |alloca| Value.instruction(alloca.type, instruction),
             .load => |load| Value.instruction(load.element, instruction),
-            .access_ptr => |access_ptr| Value.instruction(.{ .pointer = getPtrChild(access_ptr.pointer.type) }, instruction),
-            .access => |access| Value.instruction(getPtrChild(access.pointer.type), instruction),
+            .access_ptr => |access_ptr| Value.instruction(.{ .pointer = .{ .child = getPtrChild(access_ptr.pointer.type) } }, instruction),
+            .access => |access| Value.instruction(getPtrChild(access.pointer.type).*, instruction),
             .cast => |cast| Value.instruction(cast.result_type, instruction),
             .store, .ret => Value.Void,
         };

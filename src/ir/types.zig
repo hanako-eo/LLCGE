@@ -12,6 +12,15 @@ pub const Type = union(enum) {
 
     const Self = @This();
 
+    pub fn eq(self: Self, other: Self) bool {
+        return @intFromEnum(self) == @intFromEnum(other) and switch (self) {
+            .array => |array| array.eq(other.array),
+            .pointer => |pointer| pointer.eq(other.pointer),
+            .int => |int| int.eq(other.int),
+            .void => true,
+        };
+    }
+
     pub fn sizeOf(self: Self) usize {
         return switch (self) {
             .void => 0,
@@ -53,7 +62,7 @@ pub const Type = union(enum) {
         try switch (self) {
             .array => |array| writer.print("{}[{}]", .{ array.child, array.size }),
             .pointer => |ptr| writer.print("{}*", .{ptr.child}),
-            .int => |int| writer.print("{s}int{}", .{ if (int.signed) "u" else "", int.bits }),
+            .int => |int| writer.print("{s}int{}", .{ if (int.signed) "s" else "u", int.bits }),
             .void => writer.writeAll("void"),
         };
     }
