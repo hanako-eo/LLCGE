@@ -188,16 +188,15 @@ fn getTOrArrayChildT(comptime T: type) struct { bool, type } {
     const child_type = switch (info) {
         .Array => |array| array.child,
         .Pointer => |ptr| ptr.child,
-        else => T
+        else => T,
     };
     const is_array = switch (info) {
         .Array, .Pointer => true,
-        else => false
+        else => false,
     };
 
     return .{ is_array, child_type };
 }
-
 
 fn getTOrArrayChildTOfValue(comptime T: type) type {
     return getTOrArrayChildT(getStructAttribute(T, "Value")).@"1";
