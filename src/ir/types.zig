@@ -8,6 +8,7 @@ pub const Type = union(enum) {
     array: ArrayType,
     pointer: PointerType,
     int: IntType,
+    label: void,
     void: void,
 
     const Self = @This();
@@ -17,19 +18,20 @@ pub const Type = union(enum) {
             .array => |array| array.eq(other.array),
             .pointer => |pointer| pointer.eq(other.pointer),
             .int => |int| int.eq(other.int),
-            .void => true,
+            .label, .void => true,
         };
     }
 
     pub fn sizeOf(self: Self) usize {
         return switch (self) {
-            .void => 0,
+            .label, .void => 0,
             inline else => |t| t.sizeOf(),
         };
     }
 
     pub fn castable(self: Self, into: Self) bool {
         switch (self) {
+            .label => false,
             .void => into == .void,
             .array => |a1| switch (into) {
                 .array => |a2| a1.sizeOf() == a2.sizeOf() and a1.child.castable(a2.child),
@@ -63,6 +65,7 @@ pub const Type = union(enum) {
             .array => |array| writer.print("{}[{}]", .{ array.child, array.size }),
             .pointer => |ptr| writer.print("{}*", .{ptr.child}),
             .int => |int| writer.print("{s}int{}", .{ if (int.signed) "s" else "u", int.bits }),
+            .label => writer.writeAll("label"),
             .void => writer.writeAll("void"),
         };
     }
