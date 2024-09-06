@@ -1,6 +1,13 @@
 .{
     .name = "llcge",
     .version = "0.1.0",
+    .minimum_zig_version = "0.13.0",
     .dependencies = .{},
-    .paths = .{ "." },
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "README.md",
+        "LICENSE",
+    },
 }

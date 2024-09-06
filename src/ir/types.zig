@@ -51,22 +51,4 @@ pub const Type = union(enum) {
             },
         }
     }
-
-    pub fn format(
-        self: Self,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
-        try switch (self) {
-            .array => |array| writer.print("{}[{}]", .{ array.child, array.size }),
-            .pointer => |ptr| writer.print("{}*", .{ptr.child}),
-            .int => |int| writer.print("{s}int{}", .{ if (int.signed) "s" else "u", int.bits }),
-            .label => writer.writeAll("label"),
-            .void => writer.writeAll("void"),
-        };
-    }
 };

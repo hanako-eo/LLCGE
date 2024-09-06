@@ -4,12 +4,13 @@ const File = std.fs.File;
 
 const Function = @import("../function.zig");
 const Global = @import("../global.zig");
-const instruction_zig = @import("../instruction.zig");
-const Instruction = instruction_zig.Instruction;
-const OpCode = instruction_zig.OpCode;
+const Instruction = @import("../instruction.zig");
+const OpCode = @import("../op_code.zig").OpCode;
 const Module = @import("../module.zig");
 const Type = @import("../types.zig").Type;
-const Value = @import("../value.zig").Value;
+const value_zig = @import("../value.zig");
+const Constant = value_zig.Constant;
+const Value = value_zig.Value;
 
 file: File,
 writer: File.Writer,
@@ -55,16 +56,16 @@ pub fn codegen(self: Self, module: *Module) !void {
 }
 
 pub fn codegen_global(self: Self, name: []const u8, global: *const Global) !void {
-    try self.writer.print("define {s} {}* @{s} = {}\n", .{ if (global.is_constant) "local const" else "global", global.value.type, name, global.value });
+    try self.writer.print("define {s} {}* @{s} = {}\n", .{ if (global.is_constant) "local const" else "global", Formater(Type).wrap(global.value.type), name, Formater(Value).wrap(global.value) });
 }
 
 pub fn codegen_function(self: Self, name: []const u8, function: *const Function) !void {
-    try self.writer.print("define local {} @{s}(", .{ function.return_type, name });
+    try self.writer.print("define local {} @{s}(", .{ Formater(Type).wrap(function.return_type), name });
     for (function.args.items, 0..) |arg, i| {
         try if (i == 0)
-            self.writer.print("{} %{}", .{ arg.type, arg.number })
+            self.writer.print("{} %{}", .{ Formater(Type).wrap(arg.type), arg.number })
         else
-            self.writer.print(", {} %{}", .{ arg.type, arg.number });
+            self.writer.print(", {} %{}", .{ Formater(Type).wrap(arg.type), arg.number });
     }
     try self.writer.writeAll(") {\n");
     for (function.blocks.items, 0..) |block, i| {
@@ -86,17 +87,103 @@ pub fn codegen_instruction(self: Self, instruction: *const Instruction) !void {
 
 pub fn codegen_op_code(self: Self, op_code: *const OpCode) !void {
     switch (op_code.*) {
-        inline .access, .access_ptr => |access| {
-            try self.writer.print("access {}", .{access.pointer});
+        .access => |access| {
+            try self.writer.print("access {}", .{Formater(Value).wrap(access.pointer)});
             for (access.indexes) |index|
-                try self.writer.print(", {}", .{index});
+                try self.writer.print(", {}", .{Formater(Value).wrap(index)});
         },
-        .alloca => |alloca| try self.writer.print("alloca {}", .{alloca.type}),
-        .cast => |cast| try self.writer.print("cast {}, {}", .{ cast.result_type, cast.base }),
-        .load => |load| try self.writer.print("load {}, {}", .{ load.element, load.pointer }),
-        .store => |store| try self.writer.print("store {}, {}", .{ store.value, store.pointer }),
-        .ret => |ret| try if (ret.value.type == .void) self.writer.writeAll("ret void") else self.writer.print("ret {}", .{ret.value}),
+        .access_ptr => |access| {
+            try self.writer.print("access_ptr {}", .{Formater(Value).wrap(access.pointer)});
+            for (access.indexes) |index|
+                try self.writer.print(", {}", .{Formater(Value).wrap(index)});
+        },
+        .alloca => |alloca| try self.writer.print("alloca {}", .{Formater(Type).wrap(alloca.type)}),
+        .cast => |cast| try self.writer.print("cast {}, {}", .{ Formater(Type).wrap(cast.result_type), Formater(Value).wrap(cast.base) }),
+        .load => |load| try self.writer.print("load {}, {}", .{ Formater(Type).wrap(load.element), Formater(Value).wrap(load.pointer) }),
+        .store => |store| try self.writer.print("store {}, {}", .{ Formater(Value).wrap(store.value), Formater(Value).wrap(store.pointer) }),
+        .jump => |jump| try self.writer.print("jump {}", .{Formater(Value).wrap(jump.label)}),
+        .jumpc => |jumpc| try self.writer.print("jumpc {}, {}, {}", .{Formater(Value).wrap(jumpc.condition), Formater(Value).wrap(jumpc.if_label), Formater(Value).wrap(jumpc.else_label)}),
+        .ret => |ret| try if (ret.value.type == .void) self.writer.writeAll("ret void") else self.writer.print("ret {}", .{Formater(Value).wrap(ret.value)}),
     }
-
     try self.writer.writeByte('\n');
+}
+
+/// FORMATERS
+
+fn Formater(comptime T: type) type {
+    struct {
+        inner: T,
+
+        pub fn wrap(inner: T) @This() {
+            return @This() { .inner = inner };
+        }
+
+        pub fn format(
+            self: @This(),
+            comptime fmt: []const u8,
+            options: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void {
+            _ = options;
+
+            switch (T) {
+                Constant => {
+                    switch (self.inner) {
+                        inline .int, .uint => |int| {
+                            if (std.mem.eql(u8, fmt, "c"))
+                                try writer.print("{c}", .{@as(u8, @truncate(@as(usize, @bitCast(int))))})
+                            else
+                                try writer.print("{d}", .{int});
+                        },
+                        .array => |array| {
+                            if (std.mem.eql(u8, fmt, "s")) {
+                                try writer.writeByte('"');
+                                for (array) |char| {
+                                    try writer.print("{c}", .{Formater(Constant).wrap(char)});
+                                }
+                                try writer.writeByte('"');
+                            } else {
+                                try writer.writeByte('[');
+                                for (array, 0..) |constant, i| {
+                                    try if (i == 0)
+                                        writer.print("{}", .{Formater(Constant).wrap(constant)})
+                                    else
+                                        writer.print(", {}", .{Formater(Constant).wrap(constant)});
+                                }
+                                try writer.writeByte(']');
+                            }
+                        },
+                        .null_ptr => try writer.writeAll("null"),
+                        .zero_initializer => try writer.writeAll("zero_initializer"),
+                    }
+                },
+                Type => {
+                    try switch (self.inner) {
+                        .array => |array| writer.print("{}[{}]", .{ Formater(Type).wrap(array.child.*), array.size }),
+                        .pointer => |ptr| writer.print("{}*", .{ Formater(Type).wrap(ptr.child.*) }),
+                        .int => |int| writer.print("{c}int{}", .{ if (int.signed) 's' else 'u', int.bits }),
+                        .label => writer.writeAll("label"),
+                        .void => writer.writeAll("void"),
+                    };
+                },
+                Value => {
+                    try writer.print("{} ", .{Formater(Type).wrap(self.inner.type)});
+                    try switch (self.inner.value) {
+                        .constant => |c| if (isString(self.inner.type)) writer.print("{s}", .{Formater(Constant).wrap(c)}) else writer.print("{}", .{Formater(Constant).wrap(c)}),
+                        .ref => |r| switch (r) {
+                            inline .argument, .instruction => |inst| writer.print("%{}", .{inst.number}),
+                            .global => |glob| writer.print("@{s}", .{glob.name}),
+                        },
+                    };
+                }
+            }
+        }
+
+        fn isString(t: Type) bool {
+            return switch (t) {
+                inline .array, .pointer => |ptr| ptr.child.* == .int and ptr.child.int.bits == 8,
+                else => false,
+            };
+        }
+    };
 }

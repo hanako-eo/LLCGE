@@ -27,7 +27,7 @@ pub const OpCode = union(enum) {
 
     // Control Flow Operands
     jump: Jump,
-    jumpc: Jump,
+    jumpc: ConditionalJump,
     ret: Return,
 
     const Self = @This();

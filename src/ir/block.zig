@@ -3,9 +3,9 @@ const std = @import("std");
 const Error = @import("./error.zig").Error;
 
 const Function = @import("./function.zig");
-const instruction_zig = @import("./instruction.zig");
-const Instruction = instruction_zig.Instruction;
-const OpCode = instruction_zig.OpCode;
+const Instruction = @import("./instruction.zig");
+const OpCode = @import("./op_code.zig").OpCode;
+const Value = @import("./value.zig").Value;
 
 parent: *Function,
 
@@ -31,4 +31,8 @@ pub fn addInstruction(self: *Self, op_code: OpCode) Error!*Instruction {
     self.parent.index += 1;
 
     return &self.instructions.items[self.instructions.items.len - 1];
+}
+
+pub fn getReturnValue(self: *Self) Value {
+    return Value.block(self);
 }
