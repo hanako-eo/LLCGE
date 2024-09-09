@@ -4,8 +4,7 @@ const Error = @import("./error.zig").Error;
 
 const Function = @import("./function.zig");
 const Instruction = @import("./instruction.zig");
-const OpCode = @import("./op_code.zig").OpCode;
-const Value = @import("./value.zig").Value;
+const Value = @import("./value.zig");
 
 parent: *Function,
 
@@ -23,11 +22,21 @@ pub fn init(parent: *Function, number: usize) Self {
     };
 }
 
-pub fn addInstruction(self: *Self, op_code: OpCode) Error!*Instruction {
-    if (op_code == .ret)
-        std.debug.assert(op_code.ret.value.type.eq(self.parent.return_type));
+pub fn deinit(self: Self) void {
+    self.instructions.deinit();
+}
 
-    try self.instructions.append(Instruction{ .parent = self, .number = self.parent.index, .op_code = op_code });
+pub fn addInstruction(self: *Self, instruction: anytype) Error!*Instruction {
+    const InstructionPtr = @TypeOf(instruction);
+    if (@typeInfo(InstructionPtr) != .Pointer)
+        @compileError(std.fmt.comptimePrint("'{}' need to be a pointer", @typeName(InstructionPtr)));
+    
+    const T = @typeInfo(InstructionPtr).Pointer.child;
+
+    if (std.meta.hasMethod(@TypeOf(instruction), "assert"))
+        instruction.assert(self.parent);
+
+    try self.instructions.append(try Instruction.init(T, self, self.parent.index, @constCast(instruction)));
     self.parent.index += 1;
 
     return &self.instructions.items[self.instructions.items.len - 1];

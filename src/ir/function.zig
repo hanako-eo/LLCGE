@@ -37,6 +37,14 @@ pub fn init(module: *Module, return_type: Type) Self {
     };
 }
 
+pub fn deinit(self: Self) void {
+    for (self.blocks.items) |block| {
+        block.deinit();
+    }
+    self.blocks.deinit();
+    self.args.deinit();
+}
+
 pub fn addArgument(self: *Self, @"type": Type) Error!*Argument {
     try self.args.append(Argument{ .number = self.index, .parent = self, .type = @"type" });
     self.index += 1;

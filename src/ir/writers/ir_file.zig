@@ -5,7 +5,6 @@ const File = std.fs.File;
 const Function = @import("../function.zig");
 const Global = @import("../global.zig");
 const Instruction = @import("../instruction.zig");
-const OpCode = @import("../op_code.zig").OpCode;
 const Module = @import("../module.zig");
 const Type = @import("../types.zig").Type;
 const value_zig = @import("../value.zig");
@@ -82,36 +81,13 @@ pub fn codegen_function(self: Self, name: []const u8, function: *const Function)
 
 pub fn codegen_instruction(self: Self, instruction: *const Instruction) !void {
     try self.writer.print("%{} = ", .{instruction.number});
-    try self.codegen_op_code(&instruction.op_code);
-}
-
-pub fn codegen_op_code(self: Self, op_code: *const OpCode) !void {
-    switch (op_code.*) {
-        .access => |access| {
-            try self.writer.print("access {}", .{Formater(Value).wrap(access.pointer)});
-            for (access.indexes) |index|
-                try self.writer.print(", {}", .{Formater(Value).wrap(index)});
-        },
-        .access_ptr => |access| {
-            try self.writer.print("access_ptr {}", .{Formater(Value).wrap(access.pointer)});
-            for (access.indexes) |index|
-                try self.writer.print(", {}", .{Formater(Value).wrap(index)});
-        },
-        .alloca => |alloca| try self.writer.print("alloca {}", .{Formater(Type).wrap(alloca.type)}),
-        .cast => |cast| try self.writer.print("cast {}, {}", .{ Formater(Type).wrap(cast.result_type), Formater(Value).wrap(cast.base) }),
-        .load => |load| try self.writer.print("load {}, {}", .{ Formater(Type).wrap(load.element), Formater(Value).wrap(load.pointer) }),
-        .store => |store| try self.writer.print("store {}, {}", .{ Formater(Value).wrap(store.value), Formater(Value).wrap(store.pointer) }),
-        .jump => |jump| try self.writer.print("jump {}", .{Formater(Value).wrap(jump.label)}),
-        .jumpc => |jumpc| try self.writer.print("jumpc {}, {}, {}", .{Formater(Value).wrap(jumpc.condition), Formater(Value).wrap(jumpc.if_label), Formater(Value).wrap(jumpc.else_label)}),
-        .ret => |ret| try if (ret.value.type == .void) self.writer.writeAll("ret void") else self.writer.print("ret {}", .{Formater(Value).wrap(ret.value)}),
-    }
+    try instruction.vtable.irFileCodegen(instruction.inner, &self.writer);
     try self.writer.writeByte('\n');
 }
 
-/// FORMATERS
-
-fn Formater(comptime T: type) type {
-    struct {
+// FORMATER
+pub fn Formater(comptime T: type) type {
+    return struct {
         inner: T,
 
         pub fn wrap(inner: T) @This() {
@@ -161,7 +137,7 @@ fn Formater(comptime T: type) type {
                     try switch (self.inner) {
                         .array => |array| writer.print("{}[{}]", .{ Formater(Type).wrap(array.child.*), array.size }),
                         .pointer => |ptr| writer.print("{}*", .{ Formater(Type).wrap(ptr.child.*) }),
-                        .int => |int| writer.print("{c}int{}", .{ if (int.signed) 's' else 'u', int.bits }),
+                        .int => |int| writer.print("{c}int{}", .{ @as(u8, if (int.signed) 's' else 'u'), int.bits }),
                         .label => writer.writeAll("label"),
                         .void => writer.writeAll("void"),
                     };
@@ -171,11 +147,12 @@ fn Formater(comptime T: type) type {
                     try switch (self.inner.value) {
                         .constant => |c| if (isString(self.inner.type)) writer.print("{s}", .{Formater(Constant).wrap(c)}) else writer.print("{}", .{Formater(Constant).wrap(c)}),
                         .ref => |r| switch (r) {
-                            inline .argument, .instruction => |inst| writer.print("%{}", .{inst.number}),
+                            inline .argument, .instruction, .block => |inst| writer.print("%{}", .{inst.number}),
                             .global => |glob| writer.print("@{s}", .{glob.name}),
                         },
                     };
-                }
+                },
+                else => {}
             }
         }
 

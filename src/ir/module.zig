@@ -36,6 +36,15 @@ pub fn initFromSource(allocator: Allocator, source: []const u8) Self {
     };
 }
 
+pub fn deinit(self: *Self) void {
+    var it = self.functions.valueIterator();
+    while (it.next()) |function| {
+        function.deinit();
+    }
+    self.functions.deinit();
+    self.globals.deinit();
+}
+
 pub fn createGlobal(self: *Self, name: []const u8, is_constant: bool, @"type": Type, value: Constant) Error!*Global {
     if (self.globals.contains(name))
         return Error.AlreadyDefine;
