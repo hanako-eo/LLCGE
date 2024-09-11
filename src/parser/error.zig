@@ -14,7 +14,7 @@ pub fn ParseErrorKind(comptime N: type) type {
     return union(enum) {
         tag: ExpectationSimple([]const u8),
         one_of: Expectation([]const u8, u8),
-        predicate: Unexpectation(u8),
+        unexpected: Unexpectation(u8),
         char: ExpectationSimple(u8),
         satisfy: []const u8,
         not_finished: void,

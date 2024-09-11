@@ -70,7 +70,7 @@ const TakeWhileState = struct {
                 .len = 1,
                 .input = context.input,
 
-                .kind = .{ .predicate = context.input[context.dirty_cursor] },
+                .kind = .{ .unexpected = context.input[context.dirty_cursor] },
             } };
         }
 
@@ -110,7 +110,7 @@ pub fn take_until(predicate: anytype) StringParser(TakeWhileState) {
     return StringParser(TakeWhileState).init(state, TakeWhileState.process);
 }
 
-fn EscapeState(comptime P1: type, comptime P2: type) type {
+pub fn EscapeState(comptime P1: type, comptime P2: type) type {
     const P1Value = get_struct_attribute(P1, "Value");
 
     return struct {
@@ -132,10 +132,7 @@ fn EscapeState(comptime P1: type, comptime P2: type) type {
 
             return switch (self.escapable.run_with_context(context)) {
                 .err => |err| .{ .err = err },
-                .ok => blk: {
-                    context.commit();
-                    break :blk .ok;
-                },
+                .ok => .ok,
             };
         }
 
@@ -143,11 +140,7 @@ fn EscapeState(comptime P1: type, comptime P2: type) type {
             if (context.dirty_cursor >= context.input.len)
                 return null;
 
-            const result = self.parser.run_with_context(context);
-            if (result == .ok)
-                context.commit();
-
-            return result;
+            return self.parser.run_with_context(context);
         }
 
         pub fn process(self: Self, context: *Context) Result([]const u8, ParseError(void)) {
@@ -202,7 +195,7 @@ fn get_T_or_array_child_T_of_value(comptime T: type) type {
     return get_T_or_array_child_T(get_struct_attribute(T, "Value")).@"1";
 }
 
-fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
+pub fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
     const P1Value = get_struct_attribute(P1, "Value");
     const P2Value = get_struct_attribute(P2, "Value");
 
@@ -238,7 +231,6 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
             return switch (self.escapable.run_with_context(context)) {
                 .err => |err| .{ .err = err },
                 .ok => |value| blk: {
-                    context.commit();
                     try if (P2_value_is_array)
                         buffer.appendSlice(value)
                     else
@@ -255,7 +247,6 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
 
             const result = self.parser.run_with_context(context);
             if (result == .ok) {
-                context.commit();
                 try if (P1_value_is_array)
                     buffer.appendSlice(result.ok)
                 else

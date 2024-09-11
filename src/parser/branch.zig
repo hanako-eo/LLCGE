@@ -18,7 +18,7 @@ const StructLen = meta_zig.StructLen;
 
 const Result = @import("../utils/types.zig").Result;
 
-fn SelectState(comptime Ps: type, comptime T: type) type {
+pub fn SelectState(comptime Ps: type, comptime T: type) type {
     const size = StructLen(Ps);
 
     return struct {
@@ -32,7 +32,7 @@ fn SelectState(comptime Ps: type, comptime T: type) type {
 
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
             inline for (self.parsers, 0..) |p, i| {
-                const result = p.run_with_context(context);
+                const result = p.run_with_context_without_commit(context);
                 if (result == .ok) {
                     context.commit();
                     return .{ .ok = @unionInit(T, fields[i].name, result.ok) };
@@ -64,7 +64,7 @@ pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers), Selec
     return Parser(SelectUnion, SelectState(ParsersType, SelectUnion)).init(state, SelectState(ParsersType, SelectUnion).process);
 }
 
-fn ChoiceState(comptime Ps: type, comptime T: type) type {
+pub fn ChoiceState(comptime Ps: type, comptime T: type) type {
     const size = StructLen(Ps);
 
     return struct {
@@ -85,7 +85,7 @@ fn ChoiceState(comptime Ps: type, comptime T: type) type {
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
             inline for (self.parsers, 0..) |p, i| {
-                const result = p.run_with_context(context);
+                const result = p.run_with_context_without_commit(context);
                 if (result == .ok) {
                     context.commit();
                     return result;
@@ -117,7 +117,7 @@ pub fn choice(comptime parsers: anytype) Parser(ParsersCommonValue(parsers), Cho
     return Parser(CommonValue, ChoiceState(ParsersType, CommonValue)).init(state, ChoiceState(ParsersType, CommonValue).process);
 }
 
-fn ChainState(comptime Ps: type, comptime T: type) type {
+pub fn ChainState(comptime Ps: type, comptime T: type) type {
     return struct {
         parsers: Ps,
 
@@ -132,7 +132,7 @@ fn ChainState(comptime Ps: type, comptime T: type) type {
             comptime var i = 0;
             inline for (@typeInfo(Ps).Struct.fields) |parsers_field| {
                 const p = @field(self.parsers, parsers_field.name);
-                const parse_result = p.run_with_context(context);
+                const parse_result = p.run_with_context_without_commit(context);
                 if (parse_result == .err) {
                     context.uncommit();
                     return .{ .err = .{

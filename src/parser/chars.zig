@@ -109,7 +109,7 @@ const CharPredicateState = struct {
             .len = 1,
             .input = context.input,
 
-            .kind = .{ .predicate = current_char },
+            .kind = .{ .unexpected = current_char },
         } };
     }
 };

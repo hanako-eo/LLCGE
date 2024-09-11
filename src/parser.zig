@@ -42,17 +42,23 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             return Self{ .lambda = OwnedRef(fn (S, *Context) Result(T, ParseError(NotValue))).from_any(lambda), .state = state };
         }
 
-        pub inline fn run_with_context(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+        pub inline fn run_with_context_without_commit(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             return switch (self.lambda) {
                 .owned => |owned| owned(self.state, context),
                 .borrowed => |borrowed| borrowed(self.state, context),
             };
         }
 
+        pub fn run_with_context(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+            const result = self.run_with_context_without_commit(context);
+            context.commit();
+            return result;
+        }
+
         pub fn run_without_commit(self: Self, input: []const u8) struct { Result(T, ParseError(NotValue)), Context } {
             var context = Context.init(input);
 
-            return .{ self.run_with_context(&context), context };
+            return .{ self.run_with_context_without_commit(&context), context };
         }
 
         pub fn run(self: Self, input: []const u8) struct { Result(T, ParseError(NotValue)), Context } {
@@ -133,10 +139,15 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             const state = FinishedState(T, S){ .parser = self };
             return Parser(T, FinishedState(T, S)).init(state, FinishedState(T, S).process_z);
         }
+
+        pub fn followed_by(self: Self, lambda: anytype) Parser(T, FollowedByState(T, S)) {
+            const state = FollowedByState(T, S){ .lambda = OwnedRef(fn (u8) bool).from_any(lambda), .parser = self };
+            return Parser(T, FollowedByState(T, S)).init(state, FollowedByState(T, S).process);
+        }
     };
 }
 
-fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
+pub fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
     return struct {
         map: OwnedRef(fn (T) U),
         parser: Parser(T, S),
@@ -149,7 +160,7 @@ fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(U, ParseError(NotValue)) {
-            const result = self.parser.run_with_context(context);
+            const result = self.parser.run_with_context_without_commit_without_commit(context);
             return switch (result) {
                 .err => |err| .{ .err = err },
                 .ok => |value| .{ .ok = switch (self.map) {
@@ -161,7 +172,7 @@ fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
     };
 }
 
-fn OptState(comptime T: type, comptime S: type) type {
+pub fn OptState(comptime T: type, comptime S: type) type {
     return struct {
         parser: Parser(T, S),
 
@@ -173,7 +184,7 @@ fn OptState(comptime T: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(?T, ParseError(void)) {
-            const result = self.parser.run_with_context(context);
+            const result = self.parser.run_with_context_without_commit_without_commit(context);
             return switch (result) {
                 .err => blk: {
                     context.uncommit();
@@ -185,7 +196,7 @@ fn OptState(comptime T: type, comptime S: type) type {
     };
 }
 
-fn NotState(comptime T: type, comptime S: type) type {
+pub fn NotState(comptime T: type, comptime S: type) type {
     return struct {
         parser: Parser(T, S),
 
@@ -193,7 +204,7 @@ fn NotState(comptime T: type, comptime S: type) type {
         pub const NotValue = T;
 
         pub fn process(self: Self, context: *Context) Result(void, ParseError(NotValue)) {
-            const result = self.parser.run_with_context(context);
+            const result = self.parser.run_with_context_without_commit(context);
 
             return switch (result) {
                 .err => .ok,
@@ -212,7 +223,7 @@ fn NotState(comptime T: type, comptime S: type) type {
     };
 }
 
-fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) type {
+pub fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) type {
     return struct {
         parser: Parser(T, S),
 
@@ -226,7 +237,7 @@ fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) t
         }
 
         pub fn process(self: Self, context: *Context) Result(ReturnValue, ParseError(NotValue)) {
-            const result = self.parser.run_with_context(context);
+            const result = self.parser.run_with_context_without_commit(context);
             context.uncommit();
             if (peeking) {
                 return result;
@@ -237,7 +248,7 @@ fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: type) t
     };
 }
 
-fn SatisfyFnState(comptime T: type, comptime S: type) type {
+pub fn SatisfyFnState(comptime T: type, comptime S: type) type {
     return struct {
         satisfy: OwnedRef(fn (*const T) bool),
         message_fn: OwnedRef(fn (*const T) []const u8),
@@ -265,7 +276,7 @@ fn SatisfyFnState(comptime T: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
-            const result = self.parser.run_with_context(context);
+            const result = self.parser.run_with_context_without_commit(context);
             return switch (result) {
                 .err => |err| .{ .err = err },
                 .ok => |value| if (!self.@"test"(&value)) .{ .err = .{
@@ -280,7 +291,7 @@ fn SatisfyFnState(comptime T: type, comptime S: type) type {
     };
 }
 
-fn FinishedState(comptime T: type, comptime S: type) type {
+pub fn FinishedState(comptime T: type, comptime S: type) type {
     return struct {
         parser: Parser(T, S),
 
@@ -308,7 +319,7 @@ fn FinishedState(comptime T: type, comptime S: type) type {
         }
 
         fn process_impl(self: Self, context: *Context, comptime predicate: fn (*Context) bool) Result(T, ParseError(NotValue)) {
-            const result = self.parser.run_with_context(context);
+            const result = self.parser.run_with_context_without_commit(context);
             if (predicate(context))
                 return result;
 
@@ -319,6 +330,42 @@ fn FinishedState(comptime T: type, comptime S: type) type {
 
                 .kind = .not_finished,
             } };
+        }
+    };
+}
+
+pub fn FollowedByState(comptime T: type, comptime S: type) type {
+    return struct {
+        lambda: OwnedRef(fn (u8) bool),
+        parser: Parser(T, S),
+
+        const Self = @This();
+        pub const NotValue = get_struct_attribute(S, "NotValue");
+
+        pub fn call(self: Self, c: u8) bool {
+            return self.parser.call(c);
+        }
+
+        fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
+            const result = self.parser.run_with_context_without_commit(context);
+            if (result == .err or context.input.len <= context.dirty_cursor)
+                return result;
+
+            const correctly_followed = switch (self.lambda) {
+                .owned => |owned| owned(context.input[context.dirty_cursor]),
+                .borrowed => |borrowed| borrowed(context.input[context.dirty_cursor]),
+            };
+
+            if (!correctly_followed)
+                return .{ .err = .{
+                    .cursor = context.dirty_cursor,
+                    .len = 1,
+                    .input = context.input,
+
+                    .kind = .{ .unexpected = context.input[context.dirty_cursor] },
+                } };
+
+            return result;
         }
     };
 }
@@ -431,4 +478,21 @@ test "check if the parser parse all" {
 
     const result4, _ = parser2.run_without_commit("hello!");
     try testing.expectEqualDeep(.not_finished, result4.err.kind);
+}
+
+test "check if 'hello' is followed by a whitespace char" {
+    const parser = tag("hello").followed_by(std.ascii.isWhitespace);
+
+    const result, const context = parser.run("hello");
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
+    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    try testing.expectEqual(5, context.cursor);
+
+    const result2, const context2 = parser.run("hello world");
+    try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result2);
+    try testing.expectEqual(context2.dirty_cursor, context2.cursor);
+    try testing.expectEqual(5, context2.cursor);
+
+    const result3, _ = parser.run("helloo");
+    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = ' ' }, result3.err.kind);
 }
