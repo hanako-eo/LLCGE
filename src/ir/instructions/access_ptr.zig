@@ -19,17 +19,17 @@ pub fn init(pointer: Value, indexes: []const Value) Self {
     return Self{ .pointer = pointer, .indexes = indexes };
 }
 
-pub fn getReturnValue(self: Self, instruction: *Instruction) Value {
-    return Value.instruction(.{ .pointer = .{ .child = getPtrChild(self.pointer.type) } }, instruction);
+pub fn get_result(self: Self, instruction: *Instruction) Value {
+    return Value.instruction(.{ .pointer = .{ .child = get_ptr_child(self.pointer.type) } }, instruction);
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
     try writer.print("access_ptr {}", .{Formater(Value).wrap(self.pointer)});
     for (self.indexes) |index|
         try writer.print(", {}", .{Formater(Value).wrap(index)});
 }
 
-fn getPtrChild(t: Type) *Type {
+fn get_ptr_child(t: Type) *Type {
     return switch (t) {
         inline .array, .pointer => |ptr| ptr.child,
         else => unreachable,

@@ -17,10 +17,10 @@ pub fn init(result_type: Type, base: Value) Self {
     return Self{ .result_type = result_type, .base = base };
 }
 
-pub fn getReturnValue(self: Self, instruction: *Instruction) Value {
+pub fn get_result(self: Self, instruction: *Instruction) Value {
     return Value.instruction(self.result_type, instruction);
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
     try writer.print("cast {}, {}", .{ Formater(Type).wrap(self.result_type), Formater(Value).wrap(self.base) });
 }

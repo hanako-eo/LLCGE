@@ -7,16 +7,16 @@ const Field = struct { name: [:0]const u8, type: type };
 /// 0 => u0
 /// 1, 2 => u1
 /// 3, 4 => u2 ...
-fn minIntTagType(x: anytype) type {
+fn min_int_tag_type(x: anytype) type {
     const T: type = @TypeOf(x);
     if (@typeInfo(T) != .Int or @typeInfo(T).Int.signedness != .unsigned)
-        @compileError("minBitsSize requires an unsigned integer, found " ++ @typeName(T));
+        @compileError("min_int_tag_type requires an unsigned integer, found " ++ @typeName(T));
 
     return std.meta.Int(.unsigned, if (x <= 1) @intCast(x) else @intCast(@typeInfo(T).Int.bits - @clz(x - 1)));
 }
 
 /// Get the attribute `attribute_name` in the struct `StructType`
-pub fn getStructAttribute(comptime StructType: type, comptime attribute_name: []const u8) type {
+pub fn get_struct_attribute(comptime StructType: type, comptime attribute_name: []const u8) type {
     const struct_info = @typeInfo(StructType);
 
     if (struct_info != .Struct)
@@ -43,10 +43,10 @@ pub fn ParsersCommonValue(comptime parsers: anytype) type {
     if (fields.len == 0)
         @compileError("expected to have elements but the tuple or struct is empty");
 
-    const result_type_value = getStructAttribute(fields[0].type, "Value");
+    const result_type_value = get_struct_attribute(fields[0].type, "Value");
 
     for (fields[1..]) |f| {
-        const field_type_value = getStructAttribute(f.type, "Value");
+        const field_type_value = get_struct_attribute(f.type, "Value");
         if (result_type_value != field_type_value)
             @compileError(std.fmt.comptimePrint("incompatible types: '{s}' and '{s}'", .{ @typeName(result_type_value), @typeName(field_type_value) }));
     }
@@ -68,7 +68,7 @@ pub fn UnionFromParsers(comptime parsers: anytype) type {
     comptime var values: [fields.len]Field = undefined;
 
     for (fields, 0..) |f, i|
-        values[i] = .{ .name = f.name, .type = getStructAttribute(f.type, "Value") };
+        values[i] = .{ .name = f.name, .type = get_struct_attribute(f.type, "Value") };
 
     return CreateUnionEnum(values.len, values);
 }
@@ -87,7 +87,7 @@ pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]Field) type {
     }
 
     const enum_type = @Type(.{ .Enum = .{
-        .tag_type = minIntTagType(N),
+        .tag_type = min_int_tag_type(N),
         .is_exhaustive = true,
         .decls = &.{},
         .fields = &enum_fields,
@@ -118,7 +118,7 @@ pub fn StructFromParsers(comptime parsers: anytype) type {
     var real_len = 0;
 
     for (fields) |f| {
-        const T = getStructAttribute(f.type, "Value");
+        const T = get_struct_attribute(f.type, "Value");
         if (T == void)
             continue;
 
@@ -167,7 +167,7 @@ pub fn StructLen(comptime T: type) comptime_int {
     return fields.len;
 }
 
-pub fn getReturnType(comptime T: type) type {
+pub fn get_return_type(comptime T: type) type {
     const info = @typeInfo(T);
     if (info != .Fn)
         @compileError(std.fmt.comptimePrint("'{s}' is not a function type", .{@typeName(T)}));

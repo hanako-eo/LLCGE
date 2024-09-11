@@ -26,11 +26,11 @@ pub fn deinit(self: Self) void {
     self.instructions.deinit();
 }
 
-pub fn addInstruction(self: *Self, instruction: anytype) Error!*Instruction {
+pub fn add_instruction(self: *Self, instruction: anytype) Error!*Instruction {
     const InstructionPtr = @TypeOf(instruction);
     if (@typeInfo(InstructionPtr) != .Pointer)
         @compileError(std.fmt.comptimePrint("'{}' need to be a pointer", @typeName(InstructionPtr)));
-    
+
     const T = @typeInfo(InstructionPtr).Pointer.child;
 
     if (std.meta.hasMethod(@TypeOf(instruction), "assert"))
@@ -42,6 +42,6 @@ pub fn addInstruction(self: *Self, instruction: anytype) Error!*Instruction {
     return &self.instructions.items[self.instructions.items.len - 1];
 }
 
-pub fn getReturnValue(self: *Self) Value {
+pub fn get_result(self: *Self) Value {
     return Value.block(self);
 }

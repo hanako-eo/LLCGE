@@ -16,10 +16,10 @@ pub fn init(label: Value) Self {
     return Self{ .label = label };
 }
 
-pub fn getReturnValue(_: Self, _: *Instruction) Value {
+pub fn get_result(_: Self, _: *Instruction) Value {
     return Value.Void;
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
     try writer.print("jump {}", .{Formater(Value).wrap(self.label)});
 }

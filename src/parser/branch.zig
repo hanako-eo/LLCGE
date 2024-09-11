@@ -10,7 +10,7 @@ const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
 const meta_zig = @import("../utils/meta.zig");
-const getStructAttribute = meta_zig.getStructAttribute;
+const get_struct_attribute = meta_zig.get_struct_attribute;
 const UnionFromParsers = meta_zig.UnionFromParsers;
 const ParsersCommonValue = meta_zig.ParsersCommonValue;
 const StructFromParsers = meta_zig.StructFromParsers;
@@ -32,7 +32,7 @@ fn SelectState(comptime Ps: type, comptime T: type) type {
 
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
             inline for (self.parsers, 0..) |p, i| {
-                const result = p.runWithContext(context);
+                const result = p.run_with_context(context);
                 if (result == .ok) {
                     context.commit();
                     return .{ .ok = @unionInit(T, fields[i].name, result.ok) };
@@ -85,7 +85,7 @@ fn ChoiceState(comptime Ps: type, comptime T: type) type {
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
             inline for (self.parsers, 0..) |p, i| {
-                const result = p.runWithContext(context);
+                const result = p.run_with_context(context);
                 if (result == .ok) {
                     context.commit();
                     return result;
@@ -132,7 +132,7 @@ fn ChainState(comptime Ps: type, comptime T: type) type {
             comptime var i = 0;
             inline for (@typeInfo(Ps).Struct.fields) |parsers_field| {
                 const p = @field(self.parsers, parsers_field.name);
-                const parse_result = p.runWithContext(context);
+                const parse_result = p.run_with_context(context);
                 if (parse_result == .err) {
                     context.uncommit();
                     return .{ .err = .{
@@ -173,7 +173,7 @@ const whitespace = @import("./chars.zig").whitespace;
 
 test "selection of the first element out of three" {
     const parser = select(.{ tag("hello"), tag("hi"), tag("hey") });
-    const result, const context = parser.runWithoutCommit("hello");
+    const result, const context = parser.run_without_commit("hello");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
@@ -187,7 +187,7 @@ test "selection of the first element out of three" {
 
 test "selection of the second element out of three" {
     const parser = select(.{ tag("hello"), tag("hi"), tag("hey") });
-    const result, const context = parser.runWithoutCommit("hi");
+    const result, const context = parser.run_without_commit("hi");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
@@ -201,7 +201,7 @@ test "selection of the second element out of three" {
 
 test "selection of the third element out of three" {
     const parser = select(.{ tag("hello"), tag("hi"), tag("hey") });
-    const result, const context = parser.runWithoutCommit("hey");
+    const result, const context = parser.run_without_commit("hey");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
@@ -215,7 +215,7 @@ test "selection of the third element out of three" {
 
 test "selection of a non-existent element" {
     const parser = select(.{ tag("hello"), tag("hi"), tag("hey") });
-    const result, const context = parser.runWithoutCommit("bonjour");
+    const result, const context = parser.run_without_commit("bonjour");
 
     if (result == .ok)
         std.debug.panic("unexpected result value, found OK({})", .{result.ok});
@@ -226,7 +226,7 @@ test "selection of a non-existent element" {
 
 test "chain parsing with tuple" {
     const parser = chain(.{ tag("hello"), whitespace, tag("world") }).finished();
-    const result, const context = parser.runWithoutCommit("hello world");
+    const result, const context = parser.run_without_commit("hello world");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
@@ -239,7 +239,7 @@ test "chain parsing with tuple" {
 test "chain parsing with inside void field" {
     // chain need to remove void field to the result string
     const parser = chain(.{ tag("hello"), whitespace.forgot(), tag("world") }).finished();
-    const result, const context = parser.runWithoutCommit("hello world");
+    const result, const context = parser.run_without_commit("hello world");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
@@ -252,12 +252,12 @@ test "chain parsing with inside void field" {
 test "chain parsing with struct" {
     // chain need to remove void field to the result string
     const parser = chain(.{ .hello = tag("hello"), .space = whitespace, .world = tag("world") }).finished();
-    const result, const context = parser.runWithoutCommit("hello world");
+    const result, const context = parser.run_without_commit("hello world");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
 
-    try testing.expectEqualDeep(meta_zig.getStructAttribute(@TypeOf(parser), "Value"){ .hello = "hello", .space = ' ', .world = "world" }, result.ok);
+    try testing.expectEqualDeep(meta_zig.get_struct_attribute(@TypeOf(parser), "Value"){ .hello = "hello", .space = ' ', .world = "world" }, result.ok);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
     try testing.expectEqual(11, context.dirty_cursor);
 }
@@ -265,19 +265,19 @@ test "chain parsing with struct" {
 test "chain parsing with struct and void field" {
     // chain need to remove void field to the result string
     const parser = chain(.{ .hello = tag("hello"), .space = whitespace.forgot(), .world = tag("world") }).finished();
-    const result, const context = parser.runWithoutCommit("hello world");
+    const result, const context = parser.run_without_commit("hello world");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});
 
-    try testing.expectEqualDeep(meta_zig.getStructAttribute(@TypeOf(parser), "Value"){ .hello = "hello", .world = "world" }, result.ok);
+    try testing.expectEqualDeep(meta_zig.get_struct_attribute(@TypeOf(parser), "Value"){ .hello = "hello", .world = "world" }, result.ok);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
     try testing.expectEqual(11, context.dirty_cursor);
 }
 
 test "chose the first element out of three" {
     const parser = choice(.{ tag("hello"), tag("hi"), tag("hey") });
-    const result, const context = parser.runWithoutCommit("hello");
+    const result, const context = parser.run_without_commit("hello");
 
     if (result == .err)
         std.debug.panic("unexpected result value, found Err({})", .{result.err});

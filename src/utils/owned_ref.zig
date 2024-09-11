@@ -1,6 +1,6 @@
 const std = @import("std");
 const meta_zig = @import("./meta.zig");
-const getReturnType = meta_zig.getReturnType;
+const get_return_type = meta_zig.get_return_type;
 const PtrTypeOf = meta_zig.PtrTypeOf;
 
 pub fn OwnedRef(comptime T: type) type {
@@ -10,7 +10,7 @@ pub fn OwnedRef(comptime T: type) type {
 
         const Self = @This();
 
-        pub fn fromAny(comptime value: anytype) OwnedRef(T) {
+        pub fn from_any(comptime value: anytype) OwnedRef(T) {
             return if (@TypeOf(value) == T) .{ .owned = @as(T, value) } else if (@TypeOf(value) == *const T or @TypeOf(value) == *T) .{ .borrowed = @as(*const T, value) } else @compileError(std.fmt.comptimePrint("'{s}' is not of type '{1s}', '*{1s}' or '*const {1s}'", .{ @typeName(@TypeOf(value)), @typeName(T) }));
         }
     };

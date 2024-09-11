@@ -16,10 +16,10 @@ pub fn init(@"type": Type, size: usize) Self {
     return Self{ .type = @"type", .size = size };
 }
 
-pub fn getReturnValue(self: Self, instruction: *Instruction) Value {
+pub fn get_result(self: Self, instruction: *Instruction) Value {
     return Value.instruction(self.type, instruction);
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
     try writer.print("alloca {}", .{Formater(Type).wrap(self.type)});
 }

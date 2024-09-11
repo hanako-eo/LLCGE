@@ -19,11 +19,10 @@ pub fn assert(self: Self, function: *Function) void {
     std.debug.assert(self.value.type.eq(function.return_type));
 }
 
-pub fn getReturnValue(_: *Self, _: *Instruction) Value {
+pub fn get_result(_: *Self, _: *Instruction) Value {
     return Value.Void;
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
-    try if (self.value.type == .void) writer.writeAll("ret void")
-    else writer.print("ret {}", .{Formater(Value).wrap(self.value)});
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+    try if (self.value.type == .void) writer.writeAll("ret void") else writer.print("ret {}", .{Formater(Value).wrap(self.value)});
 }

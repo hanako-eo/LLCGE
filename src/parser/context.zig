@@ -17,10 +17,10 @@ pub fn uncommit(self: *Self) void {
     self.dirty_cursor = self.cursor;
 }
 
-pub fn getDirtyResidual(self: Self) []const u8 {
+pub fn get_dirty_residual(self: Self) []const u8 {
     return self.input[self.dirty_cursor..];
 }
 
-pub fn getResidual(self: Self) []const u8 {
+pub fn get_residual(self: Self) []const u8 {
     return self.input[self.cursor..];
 }

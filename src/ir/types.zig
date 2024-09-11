@@ -22,7 +22,7 @@ pub const Type = union(enum) {
         };
     }
 
-    pub fn sizeOf(self: Self) usize {
+    pub fn size_of(self: Self) usize {
         return switch (self) {
             .label, .void => 0,
             inline else => |t| t.sizeOf(),
@@ -34,17 +34,17 @@ pub const Type = union(enum) {
             .label => false,
             .void => into == .void,
             .array => |a1| switch (into) {
-                .array => |a2| a1.sizeOf() == a2.sizeOf() and a1.child.castable(a2.child),
+                .array => |a2| a1.size_of() == a2.size_of() and a1.child.castable(a2.child),
                 .pointer => |p1| a1.child.castable(p1.child),
                 else => false,
             },
             .pointer => |p1| switch (into) {
                 .pointer => true,
-                .int => |int1| p1.sizeOf() == int1.sizeOf(),
+                .int => |int1| p1.size_of() == int1.size_of(),
                 else => false,
             },
             .int => |int1| switch (into) {
-                .pointer => |p1| p1.sizeOf() == int1.sizeOf(),
+                .pointer => |p1| p1.size_of() == int1.size_of(),
                 // TODO: add more verification ?
                 .int => true,
                 else => false,

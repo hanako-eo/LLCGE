@@ -22,6 +22,6 @@ pub fn init(module: *Module, name: []const u8, is_constant: bool, @"type": Type,
     };
 }
 
-pub fn getValue(self: *Self) Value {
+pub fn get_result(self: *Self) Value {
     return Value{ .type = .{ .pointer = .{ .child = &self.value.type } }, .value = .{ .ref = .{ .global = self } } };
 }

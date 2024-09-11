@@ -8,6 +8,7 @@ const StringParser = parser_zig.StringParser;
 
 const ParseError = @import("./error.zig").ParseError;
 
+const OwnedValue = @import("../utils/owned_ref.zig").OwnedRef;
 const Result = @import("../utils/types.zig").Result;
 
 const CharState = struct {
@@ -83,18 +84,21 @@ pub fn one_of(expected_chars: []const u8) Parser(u8, OneOfState) {
 }
 
 const CharPredicateState = struct {
-    predicate: *const fn (u8) bool,
+    predicate: OwnedValue(fn (u8) bool),
 
     const Self = @This();
     pub const NotValue = void;
 
     pub fn call(self: Self, c: u8) bool {
-        return self.predicate(c);
+        return switch (self.predicate) {
+            .owned => |owned| owned(c),
+            .borrowed => |borrowed| borrowed(c),
+        };
     }
 
     pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
         const current_char = context.input[context.dirty_cursor];
-        if (self.predicate(current_char)) {
+        if (self.call(current_char)) {
             context.dirty_cursor += 1;
 
             return .{ .ok = current_char };
@@ -110,8 +114,12 @@ const CharPredicateState = struct {
     }
 };
 
-pub fn char_predicate(predicate: fn (u8) bool) Parser(u8, CharPredicateState) {
-    const parser = CharPredicateState{ .predicate = predicate };
+pub fn char_predicate(predicate: anytype) Parser(u8, CharPredicateState) {
+    const PredicateParser = @TypeOf(predicate);
+    if (PredicateParser != fn (u8) bool and PredicateParser != *const fn (u8) bool)
+        @compileError("char_predicate can only take 'fn (u8) bool' or '*const fn (u8) bool'");
+
+    const parser = CharPredicateState{ .predicate = OwnedValue(fn (u8) bool).from_any(predicate) };
     return Parser(u8, CharPredicateState).init(parser, CharPredicateState.process);
 }
 

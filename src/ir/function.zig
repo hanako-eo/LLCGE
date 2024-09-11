@@ -12,7 +12,7 @@ pub const Argument = struct {
     parent: *Self,
     type: Type,
 
-    pub inline fn getReturnValue(self: *Argument) Value {
+    pub inline fn get_result(self: *Argument) Value {
         return Value.argument(self.type, self);
     }
 };
@@ -45,14 +45,14 @@ pub fn deinit(self: Self) void {
     self.args.deinit();
 }
 
-pub fn addArgument(self: *Self, @"type": Type) Error!*Argument {
+pub fn add_argument(self: *Self, @"type": Type) Error!*Argument {
     try self.args.append(Argument{ .number = self.index, .parent = self, .type = @"type" });
     self.index += 1;
 
     return &self.args.items[self.args.items.len - 1];
 }
 
-pub fn createBlock(self: *Self) Error!*Block {
+pub fn create_block(self: *Self) Error!*Block {
     try self.blocks.append(Block.init(self, self.index));
     self.index += 1;
 

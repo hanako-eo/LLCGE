@@ -81,7 +81,7 @@ pub fn codegen_function(self: Self, name: []const u8, function: *const Function)
 
 pub fn codegen_instruction(self: Self, instruction: *const Instruction) !void {
     try self.writer.print("%{} = ", .{instruction.number});
-    try instruction.vtable.irFileCodegen(instruction.inner, &self.writer);
+    try instruction.vtable.ir_file_codegen(instruction.inner, &self.writer);
     try self.writer.writeByte('\n');
 }
 
@@ -91,7 +91,7 @@ pub fn Formater(comptime T: type) type {
         inner: T,
 
         pub fn wrap(inner: T) @This() {
-            return @This() { .inner = inner };
+            return @This(){ .inner = inner };
         }
 
         pub fn format(
@@ -136,7 +136,7 @@ pub fn Formater(comptime T: type) type {
                 Type => {
                     try switch (self.inner) {
                         .array => |array| writer.print("{}[{}]", .{ Formater(Type).wrap(array.child.*), array.size }),
-                        .pointer => |ptr| writer.print("{}*", .{ Formater(Type).wrap(ptr.child.*) }),
+                        .pointer => |ptr| writer.print("{}*", .{Formater(Type).wrap(ptr.child.*)}),
                         .int => |int| writer.print("{c}int{}", .{ @as(u8, if (int.signed) 's' else 'u'), int.bits }),
                         .label => writer.writeAll("label"),
                         .void => writer.writeAll("void"),
@@ -145,18 +145,18 @@ pub fn Formater(comptime T: type) type {
                 Value => {
                     try writer.print("{} ", .{Formater(Type).wrap(self.inner.type)});
                     try switch (self.inner.value) {
-                        .constant => |c| if (isString(self.inner.type)) writer.print("{s}", .{Formater(Constant).wrap(c)}) else writer.print("{}", .{Formater(Constant).wrap(c)}),
+                        .constant => |c| if (is_string(self.inner.type)) writer.print("{s}", .{Formater(Constant).wrap(c)}) else writer.print("{}", .{Formater(Constant).wrap(c)}),
                         .ref => |r| switch (r) {
                             inline .argument, .instruction, .block => |inst| writer.print("%{}", .{inst.number}),
                             .global => |glob| writer.print("@{s}", .{glob.name}),
                         },
                     };
                 },
-                else => {}
+                else => {},
             }
         }
 
-        fn isString(t: Type) bool {
+        fn is_string(t: Type) bool {
             return switch (t) {
                 inline .array, .pointer => |ptr| ptr.child.* == .int and ptr.child.int.bits == 8,
                 else => false,

@@ -8,6 +8,6 @@ pub fn eq(self: Self, other: Self) bool {
     return self.child.eq(other.child.*);
 }
 
-pub fn sizeOf(_: Self) usize {
+pub fn size_of(_: Self) usize {
     return @sizeOf(*anyopaque);
 }

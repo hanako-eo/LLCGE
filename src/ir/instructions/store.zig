@@ -18,10 +18,10 @@ pub fn init(pointer: Value, value: Value) Self {
     return Self{ .pointer = pointer, .value = value };
 }
 
-pub fn getReturnValue(_: Self, _: *Instruction) Value {
+pub fn get_result(_: Self, _: *Instruction) Value {
     return Value.Void;
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
     try writer.print("store {}, {}", .{ Formater(Value).wrap(self.value), Formater(Value).wrap(self.pointer) });
 }

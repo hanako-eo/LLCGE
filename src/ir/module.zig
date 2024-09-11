@@ -27,7 +27,7 @@ pub fn init(allocator: Allocator) Self {
     };
 }
 
-pub fn initFromSource(allocator: Allocator, source: []const u8) Self {
+pub fn init_from_source(allocator: Allocator, source: []const u8) Self {
     return Self{
         .allocator = allocator,
         .source = source,
@@ -45,7 +45,7 @@ pub fn deinit(self: *Self) void {
     self.globals.deinit();
 }
 
-pub fn createGlobal(self: *Self, name: []const u8, is_constant: bool, @"type": Type, value: Constant) Error!*Global {
+pub fn create_global(self: *Self, name: []const u8, is_constant: bool, @"type": Type, value: Constant) Error!*Global {
     if (self.globals.contains(name))
         return Error.AlreadyDefine;
 
@@ -53,7 +53,7 @@ pub fn createGlobal(self: *Self, name: []const u8, is_constant: bool, @"type": T
     return entry.value_ptr;
 }
 
-pub fn createFunction(self: *Self, name: []const u8, return_type: Type) Error!*Function {
+pub fn create_function(self: *Self, name: []const u8, return_type: Type) Error!*Function {
     if (self.functions.contains(name))
         return Error.AlreadyDefine;
 

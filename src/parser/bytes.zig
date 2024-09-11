@@ -11,7 +11,7 @@ const error_zig = @import("./error.zig");
 const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
-const getStructAttribute = @import("../utils/meta.zig").getStructAttribute;
+const get_struct_attribute = @import("../utils/meta.zig").get_struct_attribute;
 const owned_ref_zig = @import("../utils/owned_ref.zig");
 const OwnedRef = owned_ref_zig.OwnedRef;
 const OwnedValue = owned_ref_zig.OwnedValue;
@@ -52,7 +52,7 @@ const TakeWhileState = struct {
     const Self = @This();
     pub const NotValue = void;
 
-    fn testChar(self: Self, char: u8) bool {
+    fn test_char(self: Self, char: u8) bool {
         return switch (self.predicate) {
             .owned => |owned| owned(char),
             .borrowed => |borrowed| borrowed(char),
@@ -60,7 +60,7 @@ const TakeWhileState = struct {
     }
 
     pub fn process(self: Self, context: *Context) Result([]const u8, ParseError(void)) {
-        while (context.dirty_cursor < context.input.len and self.testChar(context.input[context.dirty_cursor])) {
+        while (context.dirty_cursor < context.input.len and self.test_char(context.input[context.dirty_cursor])) {
             context.dirty_cursor += 1;
         }
 
@@ -81,7 +81,7 @@ const TakeWhileState = struct {
 pub fn take_while(predicate: anytype) StringParser(TakeWhileState) {
     const PredicateParser = @TypeOf(predicate);
     const state = if (PredicateParser == fn (u8) bool or PredicateParser == *const fn (u8) bool)
-        TakeWhileState{ .predicate = OwnedRef(fn (u8) bool).fromAny(predicate) }
+        TakeWhileState{ .predicate = OwnedRef(fn (u8) bool).from_any(predicate) }
     else cond: {
         if (!@hasDecl(PredicateParser, "canParseOneByteAtATime") and !PredicateParser.canParseOneByteAtATime())
             @compileError(std.fmt.comptimePrint("{s} is not a Parser or it can parse more then one byte", .{@typeName(PredicateParser)}));
@@ -111,7 +111,7 @@ pub fn take_until(predicate: anytype) StringParser(TakeWhileState) {
 }
 
 fn EscapeState(comptime P1: type, comptime P2: type) type {
-    const P1Value = getStructAttribute(P1, "Value");
+    const P1Value = get_struct_attribute(P1, "Value");
 
     return struct {
         parser: P1,
@@ -121,7 +121,7 @@ fn EscapeState(comptime P1: type, comptime P2: type) type {
         const Self = @This();
         pub const NotValue = void;
 
-        fn processEscape(self: Self, context: *Context) ?Result(void, ParseError(void)) {
+        fn process_escape(self: Self, context: *Context) ?Result(void, ParseError(void)) {
             if (context.dirty_cursor >= context.input.len or context.input[context.dirty_cursor] != self.control_char)
                 return null;
 
@@ -130,7 +130,7 @@ fn EscapeState(comptime P1: type, comptime P2: type) type {
             if (context.dirty_cursor >= context.input.len)
                 return .{ .err = .{ .cursor = context.dirty_cursor, .len = 0, .input = context.input, .kind = .finished } };
 
-            return switch (self.escapable.runWithContext(context)) {
+            return switch (self.escapable.run_with_context(context)) {
                 .err => |err| .{ .err = err },
                 .ok => blk: {
                     context.commit();
@@ -139,11 +139,11 @@ fn EscapeState(comptime P1: type, comptime P2: type) type {
             };
         }
 
-        fn processParser(self: Self, context: *Context) ?Result(P1Value, ParseError(void)) {
+        fn process_parser(self: Self, context: *Context) ?Result(P1Value, ParseError(void)) {
             if (context.dirty_cursor >= context.input.len)
                 return null;
 
-            const result = self.parser.runWithContext(context);
+            const result = self.parser.run_with_context(context);
             if (result == .ok)
                 context.commit();
 
@@ -152,12 +152,12 @@ fn EscapeState(comptime P1: type, comptime P2: type) type {
 
         pub fn process(self: Self, context: *Context) Result([]const u8, ParseError(void)) {
             const start = context.dirty_cursor;
-            var result = self.processParser(context);
-            var escaped_result = self.processEscape(context);
+            var result = self.process_parser(context);
+            var escaped_result = self.process_escape(context);
 
             while (escaped_result != null and escaped_result.? != .err) {
-                result = self.processParser(context);
-                escaped_result = self.processEscape(context);
+                result = self.process_parser(context);
+                escaped_result = self.process_escape(context);
             }
 
             if (result != null and result.? == .err) {
@@ -183,7 +183,7 @@ pub fn escaped(comptime parser: anytype, control_char: u8, comptime escapable: a
     return StringParser(EscapeState(P1, P2)).init(state, EscapeState(P1, P2).process);
 }
 
-fn getTOrArrayChildT(comptime T: type) struct { bool, type } {
+fn get_T_or_array_child_T(comptime T: type) struct { bool, type } {
     const info = @typeInfo(T);
     const child_type = switch (info) {
         .Array => |array| array.child,
@@ -198,16 +198,16 @@ fn getTOrArrayChildT(comptime T: type) struct { bool, type } {
     return .{ is_array, child_type };
 }
 
-fn getTOrArrayChildTOfValue(comptime T: type) type {
-    return getTOrArrayChildT(getStructAttribute(T, "Value")).@"1";
+fn get_T_or_array_child_T_of_value(comptime T: type) type {
+    return get_T_or_array_child_T(get_struct_attribute(T, "Value")).@"1";
 }
 
 fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
-    const P1Value = getStructAttribute(P1, "Value");
-    const P2Value = getStructAttribute(P2, "Value");
+    const P1Value = get_struct_attribute(P1, "Value");
+    const P2Value = get_struct_attribute(P2, "Value");
 
-    const P1_value_is_array, const P1ValueCType = getTOrArrayChildT(P1Value);
-    const P2_value_is_array, const P2ValueCType = getTOrArrayChildT(P2Value);
+    const P1_value_is_array, const P1ValueCType = get_T_or_array_child_T(P1Value);
+    const P2_value_is_array, const P2ValueCType = get_T_or_array_child_T(P2Value);
 
     if (P1ValueCType != P2ValueCType)
         @compileError(std.fmt.comptimePrint("'{s}' should be a '{1s}' or '[]const {1s}'", .{ @typeName(P2ValueCType), @typeName(P1ValueCType) }));
@@ -226,7 +226,7 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
             return Self{ .parser = parser, .control_char = control_char, .escapable = escapable, .allocator = allocator };
         }
 
-        fn processEscape(self: Self, buffer: *std.ArrayList(P1ValueCType), context: *Context) Allocator.Error!?Result(void, ParseError(void)) {
+        fn process_escape(self: Self, buffer: *std.ArrayList(P1ValueCType), context: *Context) Allocator.Error!?Result(void, ParseError(void)) {
             if (context.dirty_cursor >= context.input.len or context.input[context.dirty_cursor] != self.control_char)
                 return null;
 
@@ -235,7 +235,7 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
             if (context.dirty_cursor >= context.input.len)
                 return .{ .err = .{ .cursor = context.dirty_cursor, .len = 0, .input = context.input, .kind = .finished } };
 
-            return switch (self.escapable.runWithContext(context)) {
+            return switch (self.escapable.run_with_context(context)) {
                 .err => |err| .{ .err = err },
                 .ok => |value| blk: {
                     context.commit();
@@ -249,11 +249,11 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
             };
         }
 
-        fn processParser(self: Self, buffer: *std.ArrayList(P1ValueCType), context: *Context) Allocator.Error!?Result(P1Value, ParseError(void)) {
+        fn process_parser(self: Self, buffer: *std.ArrayList(P1ValueCType), context: *Context) Allocator.Error!?Result(P1Value, ParseError(void)) {
             if (context.dirty_cursor >= context.input.len)
                 return null;
 
-            const result = self.parser.runWithContext(context);
+            const result = self.parser.run_with_context(context);
             if (result == .ok) {
                 context.commit();
                 try if (P1_value_is_array)
@@ -268,12 +268,12 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
         pub fn process(self: Self, context: *Context) Result(std.ArrayList(P1ValueCType), ParseError(void)) {
             var buffer = std.ArrayList(P1ValueCType).init(self.allocator);
 
-            var result = self.processParser(&buffer, context) catch |err| return .{ .err = genAllocError(&buffer, context, err) };
-            var escaped_result = self.processEscape(&buffer, context) catch |err| return .{ .err = genAllocError(&buffer, context, err) };
+            var result = self.process_parser(&buffer, context) catch |err| return .{ .err = gen_alloc_error(&buffer, context, err) };
+            var escaped_result = self.process_escape(&buffer, context) catch |err| return .{ .err = gen_alloc_error(&buffer, context, err) };
 
             while (escaped_result != null and escaped_result.? != .err) {
-                result = self.processParser(&buffer, context) catch |err| return .{ .err = genAllocError(&buffer, context, err) };
-                escaped_result = self.processEscape(&buffer, context) catch |err| return .{ .err = genAllocError(&buffer, context, err) };
+                result = self.process_parser(&buffer, context) catch |err| return .{ .err = gen_alloc_error(&buffer, context, err) };
+                escaped_result = self.process_escape(&buffer, context) catch |err| return .{ .err = gen_alloc_error(&buffer, context, err) };
             }
 
             if (result != null and result.? == .err) {
@@ -291,7 +291,7 @@ fn EscapeAndTransformState(comptime P1: type, comptime P2: type) type {
             return .{ .ok = buffer };
         }
 
-        fn genAllocError(buffer: *std.ArrayList(P1ValueCType), context: *Context, err: Allocator.Error) ParseError(void) {
+        fn gen_alloc_error(buffer: *std.ArrayList(P1ValueCType), context: *Context, err: Allocator.Error) ParseError(void) {
             context.uncommit();
             buffer.deinit();
             return .{
@@ -310,9 +310,9 @@ pub fn escaped_and_transform(
     comptime parser: anytype,
     control_char: u8,
     comptime escapable: anytype,
-) Parser(std.ArrayList(getTOrArrayChildTOfValue(@TypeOf(parser))), EscapeAndTransformState(@TypeOf(parser), @TypeOf(escapable))) {
+) Parser(std.ArrayList(get_T_or_array_child_T_of_value(@TypeOf(parser))), EscapeAndTransformState(@TypeOf(parser), @TypeOf(escapable))) {
     const P1 = @TypeOf(parser);
-    const P1Child = getTOrArrayChildTOfValue(P1);
+    const P1Child = get_T_or_array_child_T_of_value(P1);
     const P2 = @TypeOf(escapable);
 
     const state = EscapeAndTransformState(P1, P2).init(allocator, parser, control_char, escapable);
@@ -361,11 +361,11 @@ test "parsing until is a num" {
 
     const result, const context = parser.run("hello0world");
     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
-    try testing.expectEqualStrings("0world", context.getDirtyResidual());
+    try testing.expectEqualStrings("0world", context.get_dirty_residual());
 
     const result2, const context2 = parser2.run("hello0world");
     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result2);
-    try testing.expectEqualStrings("0world", context2.getDirtyResidual());
+    try testing.expectEqualStrings("0world", context2.get_dirty_residual());
 }
 
 test "parsing until a space" {

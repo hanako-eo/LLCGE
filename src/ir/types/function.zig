@@ -1,3 +1,5 @@
+// TODO add function pointer ?
+
 const std = @import("std");
 
 const Type = @import("../types.zig").Type;
@@ -7,6 +9,6 @@ params: []const Type,
 
 const Self = @This();
 
-pub fn sizeOf(_: Self) usize {
+pub fn size_of(_: Self) usize {
     return @sizeOf(*anyopaque);
 }

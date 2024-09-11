@@ -20,10 +20,10 @@ pub fn init(condition: Value, if_label: Value, else_label: Value) Self {
     return Self{ .condition = condition, .if_label = if_label, .else_label = else_label };
 }
 
-pub fn getReturnValue(_: Self, _: *Instruction) Value {
+pub fn get_result(_: Self, _: *Instruction) Value {
     return Value.Void;
 }
 
-pub fn irFileCodegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
-    try writer.print("jumpc {}, {}, {}", .{Formater(Value).wrap(self.condition), Formater(Value).wrap(self.if_label), Formater(Value).wrap(self.else_label)});
+pub fn ir_file_codegen(self: *Self, writer: *const FileWriter) std.posix.WriteError!void {
+    try writer.print("jumpc {}, {}, {}", .{ Formater(Value).wrap(self.condition), Formater(Value).wrap(self.if_label), Formater(Value).wrap(self.else_label) });
 }
