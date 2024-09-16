@@ -107,9 +107,9 @@ pub fn Parser(comptime T: type, comptime S: type) type {
             return Parser(void, NotState(T, S)).init(state, NotState(T, S).process);
         }
 
-        pub fn recognize(self: Self) Parser(void, UnconsumerState(false, T, S)) {
+        pub fn recognize(self: Self) Parser(bool, UnconsumerState(false, T, S)) {
             const state = UnconsumerState(false, T, S){ .parser = self };
-            return Parser(void, UnconsumerState(false, T, S)).init(state, UnconsumerState(false, T, S).process);
+            return Parser(bool, UnconsumerState(false, T, S)).init(state, UnconsumerState(false, T, S).process);
         }
 
         pub fn peek(self: Self) Parser(T, UnconsumerState(true, T, S)) {
@@ -160,7 +160,7 @@ pub fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(U, ParseError(NotValue)) {
-            const result = self.parser.run_with_context_without_commit_without_commit(context);
+            const result = self.parser.run_with_context_without_commit(context);
             return switch (result) {
                 .err => |err| .{ .err = err },
                 .ok => |value| .{ .ok = switch (self.map) {
@@ -184,7 +184,7 @@ pub fn OptState(comptime T: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(?T, ParseError(void)) {
-            const result = self.parser.run_with_context_without_commit_without_commit(context);
+            const result = self.parser.run_with_context_without_commit(context);
             return switch (result) {
                 .err => blk: {
                     context.uncommit();
@@ -230,7 +230,7 @@ pub fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: typ
         const Self = @This();
         pub const NotValue = get_struct_attribute(S, "NotValue");
 
-        const ReturnValue = if (peeking) T else void;
+        const ReturnValue = if (peeking) T else bool;
 
         pub fn call(self: Self, c: u8) bool {
             return self.parser.call(c);
@@ -239,11 +239,7 @@ pub fn UnconsumerState(comptime peeking: bool, comptime T: type, comptime S: typ
         pub fn process(self: Self, context: *Context) Result(ReturnValue, ParseError(NotValue)) {
             const result = self.parser.run_with_context_without_commit(context);
             context.uncommit();
-            if (peeking) {
-                return result;
-            } else {
-                return .ok;
-            }
+            return if (peeking) result else .{ .ok = result == .ok };
         }
     };
 }
@@ -431,9 +427,12 @@ test "recognize without peeking parsing" {
     const parser = tag("hello").recognize();
 
     const result, const context = parser.run_without_commit("hello");
-    try testing.expectEqualDeep(.ok, result);
+    try testing.expectEqualDeep(Result(bool, ParseError(void)){ .ok = true }, result);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
     try testing.expectEqual(context.dirty_cursor, 0);
+
+    const result2, _ = parser.run_without_commit("hi");
+    try testing.expectEqualDeep(Result(bool, ParseError(void)){ .ok = false }, result2);
 }
 
 test "recognize with peeking parsing" {
@@ -456,7 +455,7 @@ fn safisfy_false(_: *const []const u8) bool {
 test "parsing with satisfaction of condition" {
     const parser = tag("hello");
 
-    const result, _ = parser.satisfy(safisfy_false, "unexpected value").run_without_commit("hello");
+    const result, _ = parser.satisfy(safisfy_true, "unexpected value").run_without_commit("hello");
     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
 
     const result2, _ = parser.satisfy(safisfy_false, "expected value").run_without_commit("hello");
@@ -480,7 +479,7 @@ test "check if the parser parse all" {
     try testing.expectEqualDeep(.not_finished, result4.err.kind);
 }
 
-test "check if 'hello' is followed by a whitespace char" {
+test "check if 'hello' is followed by a whitespace char or nothing" {
     const parser = tag("hello").followed_by(std.ascii.isWhitespace);
 
     const result, const context = parser.run("hello");
@@ -494,5 +493,5 @@ test "check if 'hello' is followed by a whitespace char" {
     try testing.expectEqual(5, context2.cursor);
 
     const result3, _ = parser.run("helloo");
-    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = ' ' }, result3.err.kind);
+    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = 'o' }, result3.err.kind);
 }
