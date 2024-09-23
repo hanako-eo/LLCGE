@@ -21,3 +21,7 @@ An error management and detailed reporting system that facilitates error detecti
 
 ### 2. [llcge](./llcge/README.md)
 This is the core component that containing LLCGE’s IR, optimization passes, and generation of machine code (or object files, or assembly files).
+
+## License
+
+This projet is under [MIT license](./LICENSE). Each LLCGE project has it's own license, please, refert to the specific project to know the license.
