@@ -7,7 +7,7 @@ pub const min_zig_version = std.SemanticVersion{
     .major = 0,
     .minor = 14,
     .patch = 0,
-    .pre = "-dev.1671"
+    .pre = "-dev.1671",
 };
 
 const Packages = struct {
@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) void {
             \\
             \\---------------------------------------------------------------------------
             \\
-        , .{ });
+        , .{});
         return;
     };
 
@@ -42,11 +42,11 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Perform all tests.");
 
-    var b2 = utils.Build {
+    var b2 = utils.Build{
         .build = b,
         .static_option = static_option,
         .test_step = test_step,
-        .package_name = ""
+        .package_name = "",
     };
 
     inline for (comptime std.meta.declarations(Packages)) |decl| {
@@ -58,56 +58,7 @@ pub fn build(b: *std.Build) void {
             lib.build(&b2);
         }
     }
-
-    // buildAndInstallSamples(b, static, compile_only_list) catch return;
-
-    { // Tests
-        // const test_step = b.step("test", "Run all tests");
-        // tests(b, target, optimize, test_step);
-    }
 }
-
-// fn buildAndInstallSamples(b: *std.Build, static_option: StaticOption, compile_only_list: []const []const u8) !void {
-//     const target = b.standardTargetOptions(.{});
-//     const optimize = b.standardOptimizeOption(.{});
-
-//     for (std.meta.declarations(Libs)) |lib| {
-//         const lib_entry_file = b.path(b.pathJoin(&.{ lib, "/src/lib.zig" }));
-
-//         const artifact_lib = if (static_option.is_static(lib)) b.addStaticLibrary(.{
-//             .name = lib,
-//             .root_source_file = lib_entry_file,
-//             .target = target,
-//             .optimize = optimize,
-//             // .version = version,
-//         })
-//         else b.addSharedLibrary(.{
-//             .name = lib,
-//             .root_source_file = lib_entry_file,
-//             .target = target,
-//             .optimize = optimize,
-//             // .version = version,
-//         });
-//         b.installArtifact(artifact_lib);
-//     }
-// }
-
-
-// fn tests(
-//     b: *std.Build,
-//     target: std.Build.ResolvedTarget,
-//     optimize: std.builtin.OptimizeMode,
-//     test_step: *std.Build.Step,
-// ) void {
-//     inline for (comptime std.meta.declarations(Libs)) |decl| {
-//         const lib = b.dependency(decl.name, .{
-//             .target = target,
-//             .optimize = optimize,
-//         });
-
-//         test_step.dependOn(&b.addRunArtifact(lib.artifact(decl.name ++ "-tests")).step);
-//     }
-// }
 
 fn ensureZigVersion() !void {
     var installed_ver = builtin.zig_version;
@@ -141,9 +92,7 @@ pub const CompileList = union(enum) {
     fn init(excludes: ?[]const []const u8, includes: ?[]const []const u8) ?Self {
         if (excludes != null and includes != null) return null;
 
-        return if (excludes) |list| Self { .excludes = list }
-            else if (includes) |list| Self { .includes = list }
-            else Self.no_restriction;
+        return if (excludes) |list| Self{ .excludes = list } else if (includes) |list| Self{ .includes = list } else Self.no_restriction;
     }
 
     fn can_compile(self: Self, name: []const u8) bool {
