@@ -28,7 +28,7 @@ pub fn SelectState(comptime Ps: type, comptime T: type) type {
         pub const NotValue = void;
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
-            const fields = @typeInfo(T).Union.fields;
+            const fields = @typeInfo(T).@"union".fields;
 
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
             inline for (self.parsers, 0..) |p, i| {
@@ -125,12 +125,12 @@ pub fn ChainState(comptime Ps: type, comptime T: type) type {
         pub const NotValue = void;
 
         pub fn process(self: Self, context: *Context) Result(T, ParseError(NotValue)) {
-            const fields = @typeInfo(T).Struct.fields;
+            const fields = @typeInfo(T).@"struct".fields;
             var final_result: T = undefined;
 
             // iterate over the parsers at compile time, as they do not necessarily have the same memory size (and Ps is not an array but a struct)
             comptime var i = 0;
-            inline for (@typeInfo(Ps).Struct.fields) |parsers_field| {
+            inline for (@typeInfo(Ps).@"struct".fields) |parsers_field| {
                 const p = @field(self.parsers, parsers_field.name);
                 const parse_result = p.run_with_context_without_commit(context);
                 if (parse_result == .err) {

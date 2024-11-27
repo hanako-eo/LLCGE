@@ -160,7 +160,7 @@ pub fn MapState(comptime T: type, comptime U: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(U, ParseError(NotValue)) {
-            const result = self.parser.run_with_context_without_commit_without_commit(context);
+            const result = self.parser.run_with_context_without_commit(context);
             return switch (result) {
                 .err => |err| .{ .err = err },
                 .ok => |value| .{ .ok = switch (self.map) {
@@ -184,7 +184,7 @@ pub fn OptState(comptime T: type, comptime S: type) type {
         }
 
         pub fn process(self: Self, context: *Context) Result(?T, ParseError(void)) {
-            const result = self.parser.run_with_context_without_commit_without_commit(context);
+            const result = self.parser.run_with_context_without_commit(context);
             return switch (result) {
                 .err => blk: {
                     context.uncommit();
