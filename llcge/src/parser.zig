@@ -456,7 +456,7 @@ fn safisfy_false(_: *const []const u8) bool {
 test "parsing with satisfaction of condition" {
     const parser = tag("hello");
 
-    const result, _ = parser.satisfy(safisfy_false, "unexpected value").run_without_commit("hello");
+    const result, _ = parser.satisfy(safisfy_true, "unexpected value").run_without_commit("hello");
     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
 
     const result2, _ = parser.satisfy(safisfy_false, "expected value").run_without_commit("hello");
@@ -494,5 +494,5 @@ test "check if 'hello' is followed by a whitespace char" {
     try testing.expectEqual(5, context2.cursor);
 
     const result3, _ = parser.run("helloo");
-    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = ' ' }, result3.err.kind);
+    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = 'o' }, result3.err.kind);
 }
