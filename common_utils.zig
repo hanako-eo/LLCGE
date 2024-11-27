@@ -122,8 +122,8 @@ pub const Build = struct {
     pub fn print_step(self: *Self, version: *const std.SemanticVersion) void {
         if (!self.build.verbose) return;
 
-        const target = self.standard_target_options(.{  });
-        const optimize = self.standard_optimize_option(.{  });
+        const target = self.standard_target_options(.{});
+        const optimize = self.standard_optimize_option(.{});
 
         std.debug.print(
             \\---------------------------------------------------------------------------
@@ -137,8 +137,10 @@ pub const Build = struct {
             self.package_name,
             version,
             self.build_in_static(),
-            @tagName(target.result.cpu.arch), @tagName(target.result.os.tag), @tagName(target.result.abi),
-            @tagName(optimize)
+            @tagName(target.result.cpu.arch),
+            @tagName(target.result.os.tag),
+            @tagName(target.result.abi),
+            @tagName(optimize),
         });
     }
 
@@ -163,9 +165,7 @@ pub const StaticOption = union(enum) {
 
     const Self = @This();
     pub fn init(all: bool, static_list: ?[]const []const u8) Self {
-        return if (all) Self.all
-            else if (static_list) |list| Self { .list = list }
-            else Self.nothing;
+        return if (all) Self.all else if (static_list) |list| Self{ .list = list } else Self.nothing;
     }
 
     pub fn is_static(self: Self, name: []const u8) bool {

@@ -10,8 +10,8 @@ pub const version = std.SemanticVersion{
 };
 
 pub fn build(b: *utils.Build) void {
-    const target = b.standard_target_options(.{ });
-    const optimize = b.standard_optimize_option(.{ });
+    const target = b.standard_target_options(.{});
+    const optimize = b.standard_optimize_option(.{});
 
     const entry_file = b.path("src/lib.zig");
 
