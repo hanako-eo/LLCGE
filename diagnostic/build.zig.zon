@@ -1,0 +1,14 @@
+.{
+    .name = "diagnostic",
+    .version = "0.1.0",
+    .dependencies = .{
+        .utils = .{ .path = "../utils" },
+    },
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+    },
+}
