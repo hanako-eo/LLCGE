@@ -1,7 +1,7 @@
 const std = @import("std");
 const Lazy = @import("./lazy.zig").Lazy;
 
-var should_color = Lazy(bool, has_colors);
+var should_color = Lazy(bool, has_colors).init();
 
 fn has_colors() bool {
     const CLICOLOR_FORCE = std.process.hasEnvVarConstant("CLICOLOR_FORCE");

@@ -83,7 +83,7 @@ pub fn take_while(predicate: anytype) StringParser(TakeWhileState) {
     const state = if (PredicateParser == fn (u8) bool or PredicateParser == *const fn (u8) bool)
         TakeWhileState{ .predicate = OwnedRef(fn (u8) bool).from_any(predicate) }
     else cond: {
-        if (!@hasDecl(PredicateParser, "canParseOneByteAtATime") and !PredicateParser.canParseOneByteAtATime())
+        if (!@hasDecl(PredicateParser, "can_parse_one_byte_at_a_time") and !PredicateParser.can_parse_one_byte_at_a_time())
             @compileError(std.fmt.comptimePrint("{s} is not a Parser or it can parse more then one byte", .{@typeName(PredicateParser)}));
 
         break :cond TakeWhileState{ .predicate = OwnedValue(struct {
@@ -179,12 +179,12 @@ pub fn escaped(comptime parser: anytype, control_char: u8, comptime escapable: a
 fn get_T_or_array_child_T(comptime T: type) struct { bool, type } {
     const info = @typeInfo(T);
     const child_type = switch (info) {
-        .Array => |array| array.child,
-        .Pointer => |ptr| ptr.child,
+        .array => |array| array.child,
+        .pointer => |ptr| ptr.child,
         else => T,
     };
     const is_array = switch (info) {
-        .Array, .Pointer => true,
+        .array, .pointer => true,
         else => false,
     };
 
