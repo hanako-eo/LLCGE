@@ -20,9 +20,31 @@ pub const Color = enum(u8) {
 
     const Self = @This();
 
+    pub fn force_usage(usage: bool) void {
+        should_color.get().* = usage;
+    }
+
+    pub fn str(self: Self) ?[5]u8 {
+        if (should_color.get().*) {
+            var buf: [5]u8 = undefined;
+            _ = std.fmt.bufPrint(&buf, "\x1B[{}m", .{@intFromEnum(self)}) catch unreachable;
+            return buf;
+        } else {
+            return null;
+        }
+    }
+
+    pub fn reset() ?[]const u8 {
+        if (should_color.get().*) {
+            return "\x1B[0m";
+        } else {
+            return null;
+        }
+    }
+
     pub fn colorize(comptime self: Self, comptime text: []const u8) []const u8 {
         if (should_color.get().*) {
-            return comptime std.fmt.comptimePrint("\u{001B}[{}m{s}\u{001B}[0m", .{ @intFromEnum(self), text });
+            return comptime std.fmt.comptimePrint("\x1B[{}m{s}\x1B[0m", .{ @intFromEnum(self), text });
         } else {
             return text;
         }

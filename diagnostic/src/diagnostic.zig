@@ -25,14 +25,98 @@ pub fn format(
     self: Self,
     comptime _: []const u8,
     _: std.fmt.FormatOptions,
-    writer: anytype,
+    base_writer: anytype,
 ) !void {
+    const writer = Writer.init(base_writer);
     const path = self.source.path orelse "~memory";
+    const color = switch (self.severity) {
+        .info => Color.magenta,
+        .warning => Color.yellow,
+        .@"error" => Color.red,
+    };
     const tag = switch (self.severity) {
         .info => Color.magenta.colorize("info"),
         .warning => Color.yellow.colorize("warning"),
         .@"error" => Color.red.colorize("error"),
     };
 
+    var lines = self.source.get_lines(self.location.start.line);
+
     try writer.print("{s} in {s}:{}:{}:\n -> {s}\n", .{ tag, path, self.location.start.line, self.location.start.column, self.message });
+
+    const max_line_number_size = std.math.log10_int(self.location.end.line) + 1;
+    var line: []const u8 = undefined;
+    if (self.location.end.line == self.location.start.line) {
+        line = lines.next() orelse return;
+        try writer.writeByte(' ');
+        try writer.writeInt(self.location.start.line, max_line_number_size);
+        try writer.print(" | {s}\n", .{line});
+        try writer.writeRepeatedByte(' ', max_line_number_size + 1);
+        try writer.writeAll(" | ");
+        try writer.writeRepeatedByte(' ', self.location.start.column - 1);
+        try writer.writeWithColor(color, self.location.end.column - self.location.start.column, struct {
+            fn call(w: Writer, i: usize) !void {
+                try w.writeRepeatedByte('^', i);
+            }
+        }.call);
+    } else {
+        for (self.location.start.line..(self.location.end.line + 1)) |i| {
+            line = lines.next() orelse return;
+            try writer.writeByte(' ');
+            try writer.writeInt(i, max_line_number_size);
+            try writer.writeAll(" | ");
+            try writer.writeWithColor(color, if (i == self.location.start.line) @as(u8, '/') else @as(u8, '|'), Writer.writeByte);
+            try writer.print(" {s}\n", .{line});
+        }
+        try writer.writeRepeatedByte(' ', max_line_number_size + 4);
+
+        try writer.writeWithColor(color, self.location.end.column, struct {
+            fn call(w: Writer, i: usize) !void {
+                try w.writeByte('\\');
+                try w.writeRepeatedByte('-', i - 1);
+                try w.writeByte('/');
+            }
+        }.call);
+    }
 }
+
+const Writer = struct {
+    base: std.io.AnyWriter,
+
+    pub fn init(base: std.io.AnyWriter) Writer {
+        return Writer { .base = base };
+    }
+
+    pub fn writeInt(self: Writer, value: usize, width: usize) !void {
+        try std.fmt.formatInt(value, 10, .lower, .{ .width = width }, self.base);
+    }
+
+    pub fn writeRepeatedByte(self: Writer, char: u8, repetition: usize) !void {
+        var i: usize = 0;
+        while (i < repetition) : (i += 1) {
+            try self.base.writeByte(char);
+        }
+    }
+
+    pub fn writeWithColor(self: Writer, color: Color, ctx: anytype, func: fn (Writer, @TypeOf(ctx)) anyerror!void) !void {
+        if (color.str()) |c| {
+            try self.base.writeAll(&c);
+        }
+        try func(self, ctx);
+        if (Color.reset()) |c| {
+            try self.base.writeAll(c);
+        }
+    }
+
+    pub fn writeByte(self: Writer, char: u8) !void {
+        try self.base.writeByte(char);
+    }
+
+    pub fn writeAll(self: Writer, bytes: []const u8) !void {
+        try self.base.writeAll(bytes);
+    }
+
+    pub fn print(self: Writer, comptime format_str: []const u8, args: anytype) !void {
+        try self.base.print(format_str, args);
+    }
+};
