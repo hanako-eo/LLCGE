@@ -7,6 +7,6 @@ span: Span,
 
 const Self = @This();
 
-pub fn init(location: Location, source: Source, note: []const u8) Self {
+pub fn init(source: Source, location: Location, note: []const u8) Self {
     return Self{ .note = note, .span = Span{ .location = location, .source = source } };
 }

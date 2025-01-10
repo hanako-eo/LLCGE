@@ -21,7 +21,7 @@ test "if diagnostic on single line warning print correctly" {
     ;
     const d = Diagnostic.init_empty(.warning, Source.init_unnamed(source), Location.init(2, 4, 2, 9), "don't you mean \"diagnostic\" instead?", std.testing.allocator);
 
-    try expectFmt("\x1B[33mwarning\x1B[0m in ~memory:2:4:\n -> don't you mean \"diagnostic\" instead?\n 2 | of llcge.\n   |    \x1B[33m^^^^^\x1B[0m", "{}", .{d});
+    try expectFmt("\x1B[33mwarning\x1B[0m in ~memory:2:4:\n -> don't you mean \"diagnostic\" instead?\n 2 | of llcge.\n   |    \x1B[33m^^^^^\x1B[0m\n", "{}", .{d});
 }
 
 test "if diagnostic on multi line error print correctly" {
@@ -31,7 +31,7 @@ test "if diagnostic on multi line error print correctly" {
     ;
     const d = Diagnostic.init_empty(.@"error", Source.init_unnamed(source), Location.init(1, 1, 2, 10), "this sentence is not correct", std.testing.allocator);
 
-    try expectFmt("\x1B[31merror\x1B[0m in ~memory:1:1:\n -> this sentence is not correct\n 1 | \x1B[31m/\x1B[0m This is a test\n 2 | \x1B[31m|\x1B[0m of llcge.\n     \x1B[31m\\---------/\x1B[0m", "{}", .{d});
+    try expectFmt("\x1B[31merror\x1B[0m in ~memory:1:1:\n -> this sentence is not correct\n 1 | \x1B[31m/\x1B[0m This is a test\n 2 | \x1B[31m|\x1B[0m of llcge.\n     \x1B[31m\\---------/\x1B[0m\n", "{}", .{d});
 }
 
 test "if diagnostic on multi line error print correctly without color" {
@@ -44,5 +44,34 @@ test "if diagnostic on multi line error print correctly without color" {
     ;
     const d = Diagnostic.init_empty(.@"error", Source.init_unnamed(source), Location.init(1, 1, 2, 10), "this sentence is not correct", std.testing.allocator);
 
-    try expectFmt("error in ~memory:1:1:\n -> this sentence is not correct\n 1 | / This is a test\n 2 | | of llcge.\n     \\---------/", "{}", .{d});
+    try expectFmt("error in ~memory:1:1:\n -> this sentence is not correct\n 1 | / This is a test\n 2 | | of llcge.\n     \\---------/\n", "{}", .{d});
+}
+
+test "if diagnostic error print correctly without color and with a note" {
+    const Color = @import("utils").Color;
+    Color.force_usage(false);
+
+    const source =
+        \\This is a test
+        \\of llcge.
+    ;
+    var d = Diagnostic.init_empty(.@"error", Source.init_unnamed(source), Location.init(1, 1, 2, 10), "this sentence is not correct", std.testing.allocator);
+    defer d.deinit();
+    try d.add_note(d.get_source(), Location.init(2, 4, 2, 9), "don't you mean \"diagnostic\" instead?");
+
+    try expectFmt(
+        \\error in ~memory:1:1:
+        \\ -> this sentence is not correct
+        \\ 1 | / This is a test
+        \\ 2 | | of llcge.
+        \\     \---------/
+        \\note in ~memory:2:4:
+        \\ -> don't you mean "diagnostic" instead?
+        \\ 2 | of llcge.
+        \\   |    ^^^^^
+        \\
+        ,
+        "{}",
+        .{d}
+    );
 }

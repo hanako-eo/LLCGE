@@ -21,6 +21,18 @@ pub inline fn init_empty(severity: Severity, source: Source, location: Location,
     return Self.init(severity, source, location, message, std.ArrayList(Label).init(allocator));
 }
 
+pub fn deinit(self: Self) void {
+    self.labels.deinit();
+}
+
+pub fn get_source(self: Self) Source {
+    return self.source;
+}
+
+pub fn add_note(self: *Self, source: Source, location: Location, note: []const u8) !void {
+    return self.labels.append(Label.init(source, location, note));
+}
+
 pub fn format(
     self: Self,
     comptime _: []const u8,
@@ -28,49 +40,73 @@ pub fn format(
     base_writer: anytype,
 ) !void {
     const writer = Writer.init(base_writer);
-    const path = self.source.path orelse "~memory";
-    const color = switch (self.severity) {
-        .info => Color.magenta,
-        .warning => Color.yellow,
-        .@"error" => Color.red,
-    };
-    const tag = switch (self.severity) {
-        .info => Color.magenta.colorize("info"),
-        .warning => Color.yellow.colorize("warning"),
-        .@"error" => Color.red.colorize("error"),
-    };
 
-    var lines = self.source.get_lines(self.location.start.line);
+    try format_label(
+        switch (self.severity) {
+            .info => Color.magenta.colorize("info"),
+            .warning => Color.yellow.colorize("warning"),
+            .@"error" => Color.red.colorize("error"),
+        },
+        switch (self.severity) {
+            .info => Color.magenta,
+            .warning => Color.yellow,
+            .@"error" => Color.red,
+        },
+        self.source,
+        self.location,
+        self.message,
+        writer
+    );
 
-    try writer.print("{s} in {s}:{}:{}:\n -> {s}\n", .{ tag, path, self.location.start.line, self.location.start.column, self.message });
+    for (self.labels.items) |label| {
+        try format_label(
+            Color.cyan.colorize("note"),
+            Color.cyan,
+            label.span.source,
+            label.span.location,
+            label.note,
+            writer
+        );
+    }
+}
 
-    const max_line_number_size = std.math.log10_int(self.location.end.line) + 1;
+fn format_label(tag: []const u8, color: Color, source: Source, location: Location, message: ?[]const u8, writer: Writer) !void {
+    const path = source.path orelse "~memory";
+    var lines = source.get_lines(location.start.line);
+
+    if (message) |note| {
+        try writer.print("{s} in {s}:{}:{}:\n -> {s}\n", .{ tag, path, location.start.line, location.start.column, note });
+    } else {
+        try writer.print("{s} in {s}:{}:{}:\n", .{ tag, path, location.start.line, location.start.column });
+    }
+
+    const max_line_number_size = std.math.log10_int(location.end.line) + 1;
     var line: []const u8 = undefined;
-    if (self.location.end.line == self.location.start.line) {
+    if (location.end.line == location.start.line) {
         line = lines.next() orelse return;
         try writer.writeByte(' ');
-        try writer.writeInt(self.location.start.line, max_line_number_size);
+        try writer.writeInt(location.start.line, max_line_number_size);
         try writer.print(" | {s}\n", .{line});
         try writer.writeRepeatedByte(' ', max_line_number_size + 1);
         try writer.writeAll(" | ");
-        try writer.writeRepeatedByte(' ', self.location.start.column - 1);
-        try writer.writeWithColor(color, self.location.end.column - self.location.start.column, struct {
+        try writer.writeRepeatedByte(' ', location.start.column - 1);
+        try writer.writeWithColor(color, location.end.column - location.start.column, struct {
             fn call(w: Writer, i: usize) !void {
                 try w.writeRepeatedByte('^', i);
             }
         }.call);
     } else {
-        for (self.location.start.line..(self.location.end.line + 1)) |i| {
+        for (location.start.line..(location.end.line + 1)) |i| {
             line = lines.next() orelse return;
             try writer.writeByte(' ');
             try writer.writeInt(i, max_line_number_size);
             try writer.writeAll(" | ");
-            try writer.writeWithColor(color, if (i == self.location.start.line) @as(u8, '/') else @as(u8, '|'), Writer.writeByte);
+            try writer.writeWithColor(color, if (i == location.start.line) @as(u8, '/') else @as(u8, '|'), Writer.writeByte);
             try writer.print(" {s}\n", .{line});
         }
         try writer.writeRepeatedByte(' ', max_line_number_size + 4);
 
-        try writer.writeWithColor(color, self.location.end.column, struct {
+        try writer.writeWithColor(color, location.end.column, struct {
             fn call(w: Writer, i: usize) !void {
                 try w.writeByte('\\');
                 try w.writeRepeatedByte('-', i - 1);
@@ -78,6 +114,7 @@ pub fn format(
             }
         }.call);
     }
+    try writer.writeByte('\n');
 }
 
 const Writer = struct {
