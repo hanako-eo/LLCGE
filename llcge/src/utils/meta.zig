@@ -9,20 +9,20 @@ const Field = struct { name: [:0]const u8, type: type };
 /// 3, 4 => u2 ...
 fn min_int_tag_type(x: anytype) type {
     const T: type = @TypeOf(x);
-    if (@typeInfo(T) != .Int or @typeInfo(T).Int.signedness != .unsigned)
+    if (@typeInfo(T) != .int or @typeInfo(T).int.signedness != .unsigned)
         @compileError("min_int_tag_type requires an unsigned integer, found " ++ @typeName(T));
 
-    return std.meta.Int(.unsigned, if (x <= 1) @intCast(x) else @intCast(@typeInfo(T).Int.bits - @clz(x - 1)));
+    return std.meta.Int(.unsigned, if (x <= 1) @intCast(x) else @intCast(@typeInfo(T).int.bits - @clz(x - 1)));
 }
 
 /// Get the attribute `attribute_name` in the struct `StructType`
 pub fn get_struct_attribute(comptime StructType: type, comptime attribute_name: []const u8) type {
     const struct_info = @typeInfo(StructType);
 
-    if (struct_info != .Struct)
+    if (struct_info != .@"struct")
         @compileError("The input need to be a structure");
 
-    const decls = struct_info.Struct.decls;
+    const decls = struct_info.@"struct".decls;
 
     for (decls) |decl| {
         if (std.mem.eql(u8, decl.name, attribute_name))
@@ -36,10 +36,10 @@ pub fn get_struct_attribute(comptime StructType: type, comptime attribute_name: 
 pub fn ParsersCommonValue(comptime parsers: anytype) type {
     const ParsersType = @TypeOf(parsers);
     const parsers_type_info = @typeInfo(ParsersType);
-    if (parsers_type_info != .Struct)
+    if (parsers_type_info != .@"struct")
         @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
 
-    const fields = parsers_type_info.Struct.fields;
+    const fields = parsers_type_info.@"struct".fields;
     if (fields.len == 0)
         @compileError("expected to have elements but the tuple or struct is empty");
 
@@ -58,10 +58,10 @@ pub fn ParsersCommonValue(comptime parsers: anytype) type {
 pub fn UnionFromParsers(comptime parsers: anytype) type {
     const ParsersType = @TypeOf(parsers);
     const parsers_type_info = @typeInfo(ParsersType);
-    if (parsers_type_info != .Struct)
+    if (parsers_type_info != .@"struct")
         @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
 
-    const fields = parsers_type_info.Struct.fields;
+    const fields = parsers_type_info.@"struct".fields;
     if (fields.len == 0)
         @compileError("expected to have elements but the tuple or struct is empty");
 
@@ -86,7 +86,7 @@ pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]Field) type {
         enum_fields[i] = .{ .name = field.name, .value = i };
     }
 
-    const enum_type = @Type(.{ .Enum = .{
+    const enum_type = @Type(.{ .@"enum" = .{
         .tag_type = min_int_tag_type(N),
         .is_exhaustive = true,
         .decls = &.{},
@@ -94,7 +94,7 @@ pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]Field) type {
     } });
 
     return @Type(.{
-        .Union = .{
+        .@"union" = .{
             .layout = .auto,
             .tag_type = enum_type,
             .decls = &.{},
@@ -107,12 +107,12 @@ pub fn CreateUnionEnum(comptime N: usize, comptime types: [N]Field) type {
 pub fn StructFromParsers(comptime parsers: anytype) type {
     const ParsersType = @TypeOf(parsers);
     const parsers_type_info = @typeInfo(ParsersType);
-    if (parsers_type_info != .Struct) {
+    if (parsers_type_info != .@"struct") {
         @compileError("expected tuple or struct argument, found " ++ @typeName(ParsersType));
     }
 
-    const fields = parsers_type_info.Struct.fields;
-    const is_tuple = parsers_type_info.Struct.is_tuple;
+    const fields = parsers_type_info.@"struct".fields;
+    const is_tuple = parsers_type_info.@"struct".is_tuple;
 
     comptime var values: [fields.len]Field = undefined;
     var real_len = 0;
@@ -147,7 +147,7 @@ pub fn CreateUniqueStruct(comptime size: usize, comptime types: []Field, comptim
     }
 
     return @Type(.{
-        .Struct = .{
+        .@"struct" = .{
             .layout = .auto,
             .backing_integer = null,
             .is_tuple = is_tuple,
@@ -159,26 +159,26 @@ pub fn CreateUniqueStruct(comptime size: usize, comptime types: []Field, comptim
 
 pub fn StructLen(comptime T: type) comptime_int {
     const parsers_type_info = @typeInfo(T);
-    if (parsers_type_info != .Struct) {
+    if (parsers_type_info != .@"struct") {
         @compileError("expected tuple or struct argument, found " ++ @typeName(T));
     }
 
-    const fields = parsers_type_info.Struct.fields;
+    const fields = parsers_type_info.@"struct".fields;
     return fields.len;
 }
 
 pub fn get_return_type(comptime T: type) type {
     const info = @typeInfo(T);
-    if (info != .Fn)
+    if (info != .@"fn")
         @compileError(std.fmt.comptimePrint("'{s}' is not a function type", .{@typeName(T)}));
 
-    return info.Fn.return_type.?;
+    return info.@"fn".return_type.?;
 }
 
 pub fn PtrTypeOf(comptime T: type) type {
     const T_info = @typeInfo(T);
-    if (T_info != .Pointer)
+    if (T_info != .pointer)
         @compileError(std.fmt.comptimePrint("'{s}' is not a pointer", .{@typeName(T)}));
 
-    return T_info.Pointer.child;
+    return T_info.pointer.child;
 }

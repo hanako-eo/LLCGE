@@ -179,12 +179,12 @@ pub fn escaped(comptime parser: anytype, control_char: u8, comptime escapable: a
 fn get_T_or_array_child_T(comptime T: type) struct { bool, type } {
     const info = @typeInfo(T);
     const child_type = switch (info) {
-        .Array => |array| array.child,
-        .Pointer => |ptr| ptr.child,
+        .array => |array| array.child,
+        .pointer => |ptr| ptr.child,
         else => T,
     };
     const is_array = switch (info) {
-        .Array, .Pointer => true,
+        .array, .pointer => true,
         else => false,
     };
 
