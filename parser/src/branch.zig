@@ -2,21 +2,21 @@ const std = @import("std");
 
 const Context = @import("./context.zig");
 
-const parser_zig = @import("../parser.zig");
+const parser_zig = @import("./lib.zig");
 const Parser = parser_zig.Parser;
 
 const error_zig = @import("./error.zig");
 const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
-const meta_zig = @import("../utils/meta.zig");
+const meta_zig = @import("./utils/meta.zig");
 const get_struct_attribute = meta_zig.get_struct_attribute;
 const UnionFromParsers = meta_zig.UnionFromParsers;
 const ParsersCommonValue = meta_zig.ParsersCommonValue;
 const StructFromParsers = meta_zig.StructFromParsers;
 const StructLen = meta_zig.StructLen;
 
-const Result = @import("../utils/types.zig").Result;
+const Result = @import("./utils/types.zig").Result;
 
 pub fn SelectState(comptime Ps: type, comptime T: type) type {
     const size = StructLen(Ps);

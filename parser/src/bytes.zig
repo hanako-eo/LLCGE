@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const Context = @import("./context.zig");
 
-const parser_zig = @import("../parser.zig");
+const parser_zig = @import("./lib.zig");
 const Parser = parser_zig.Parser;
 const StringParser = parser_zig.StringParser;
 
@@ -11,12 +11,12 @@ const error_zig = @import("./error.zig");
 const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
-const get_struct_attribute = @import("../utils/meta.zig").get_struct_attribute;
-const owned_ref_zig = @import("../utils/owned_ref.zig");
+const get_struct_attribute = @import("./utils/meta.zig").get_struct_attribute;
+const owned_ref_zig = @import("./utils/owned_ref.zig");
 const OwnedRef = owned_ref_zig.OwnedRef;
 const OwnedValue = owned_ref_zig.OwnedValue;
 
-const Result = @import("../utils/types.zig").Result;
+const Result = @import("./utils/types.zig").Result;
 
 const TagState = struct {
     tag: []const u8,

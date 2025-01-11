@@ -2,14 +2,16 @@ const std = @import("std");
 
 const Context = @import("./context.zig");
 
-const parser_zig = @import("../parser.zig");
+const parser_zig = @import("./lib.zig");
 const Parser = parser_zig.Parser;
 const StringParser = parser_zig.StringParser;
 
-const ParseError = @import("./error.zig").ParseError;
+const error_zig = @import("./error.zig");
+const ParseError = error_zig.ParseError;
+const ParseErrorKind = error_zig.ParseErrorKind;
 
-const OwnedValue = @import("../utils/owned_ref.zig").OwnedRef;
-const Result = @import("../utils/types.zig").Result;
+const OwnedValue = @import("./utils/owned_ref.zig").OwnedRef;
+const Result = @import("./utils/types.zig").Result;
 
 const CharState = struct {
     char: u8,
@@ -157,13 +159,13 @@ test "parsing one of chars" {
 }
 
 test "parsing alpha" {
-    const parser = one_of(&.{ '(', ')' });
+    const parser = alpha;
 
-    const result, const context = parser.run("(hello) world!");
-    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = '(' }, result);
+    const result, const context = parser.run("hello world!");
+    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = 'h' }, result);
     try testing.expectEqual(context.dirty_cursor, context.cursor);
 
     const result2, const context2 = parser.run(")hello( world!");
-    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = ')' }, result2);
+    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = ')' }, result2.err.kind);
     try testing.expectEqual(context2.dirty_cursor, context2.cursor);
 }

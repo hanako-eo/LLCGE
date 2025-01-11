@@ -1,10 +1,11 @@
 const std = @import("std");
 
-pub const branch = @import("./parser/branch.zig");
-pub const bytes = @import("./parser/bytes.zig");
-pub const chars = @import("./parser/chars.zig");
-pub const Context = @import("./parser/context.zig");
-pub const errors = @import("./parser/error.zig");
+pub const branch = @import("./branch.zig");
+pub const bytes = @import("./bytes.zig");
+pub const chars = @import("./chars.zig");
+
+pub const Context = @import("./context.zig");
+pub const errors = @import("./error.zig");
 
 const ParseError = errors.ParseError;
 const ParseErrorKind = errors.ParseErrorKind;
