@@ -44,7 +44,7 @@ pub fn build(b: *std.Build) void {
         .version = version,
     });
     b.installArtifact(artifact_lib);
-    add_dependencies(&artifact_lib.root_module, &dependencies);
+    add_dependencies(artifact_lib.root_module, &dependencies);
 
     // TESTS
     const test_step = b.step("test", "Perform all tests");
@@ -55,7 +55,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .version = version,
     });
-    add_dependencies(&main_tests.root_module, &dependencies);
+    add_dependencies(main_tests.root_module, &dependencies);
 
     const tests = b.addInstallArtifact(main_tests, .{});
     test_step.dependOn(&b.addRunArtifact(tests.artifact).step);

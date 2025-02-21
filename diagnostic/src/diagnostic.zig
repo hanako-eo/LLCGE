@@ -41,32 +41,18 @@ pub fn format(
 ) !void {
     const writer = Writer.init(base_writer);
 
-    try format_label(
-        switch (self.severity) {
-            .info => Color.magenta.colorize("info"),
-            .warning => Color.yellow.colorize("warning"),
-            .@"error" => Color.red.colorize("error"),
-        },
-        switch (self.severity) {
-            .info => Color.magenta,
-            .warning => Color.yellow,
-            .@"error" => Color.red,
-        },
-        self.source,
-        self.location,
-        self.message,
-        writer
-    );
+    try format_label(switch (self.severity) {
+        .info => Color.magenta.colorize("info"),
+        .warning => Color.yellow.colorize("warning"),
+        .@"error" => Color.red.colorize("error"),
+    }, switch (self.severity) {
+        .info => Color.magenta,
+        .warning => Color.yellow,
+        .@"error" => Color.red,
+    }, self.source, self.location, self.message, writer);
 
     for (self.labels.items) |label| {
-        try format_label(
-            Color.cyan.colorize("note"),
-            Color.cyan,
-            label.span.source,
-            label.span.location,
-            label.note,
-            writer
-        );
+        try format_label(Color.cyan.colorize("note"), Color.cyan, label.span.source, label.span.location, label.note, writer);
     }
 }
 
@@ -121,7 +107,7 @@ const Writer = struct {
     base: std.io.AnyWriter,
 
     pub fn init(base: std.io.AnyWriter) Writer {
-        return Writer { .base = base };
+        return Writer{ .base = base };
     }
 
     pub fn writeInt(self: Writer, value: usize, width: usize) !void {

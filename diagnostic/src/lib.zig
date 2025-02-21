@@ -15,6 +15,9 @@ const expect = std.testing.expect;
 const expectFmt = std.testing.expectFmt;
 
 test "if diagnostic on single line warning print correctly" {
+    const Color = @import("utils").Color;
+    Color.force_usage(true);
+
     const source =
         \\This is a test
         \\of llcge.
@@ -25,6 +28,9 @@ test "if diagnostic on single line warning print correctly" {
 }
 
 test "if diagnostic on multi line error print correctly" {
+    const Color = @import("utils").Color;
+    Color.force_usage(true);
+
     const source =
         \\This is a test
         \\of llcge.
@@ -70,8 +76,5 @@ test "if diagnostic error print correctly without color and with a note" {
         \\ 2 | of llcge.
         \\   |    ^^^^^
         \\
-        ,
-        "{}",
-        .{d}
-    );
+    , "{}", .{d});
 }
