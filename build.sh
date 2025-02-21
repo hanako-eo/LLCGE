@@ -9,16 +9,18 @@ show_usage() {
 Usage: $0 [commands] [options]
 
 options:
-	--verbose	Print commands before executing them
-	--exclude	Exclude of the compile the provided list of libs (cannot be used with --only)
-	--only		Compile only the provided list of libs (cannot be used with --exclude)
-	--static	Compile all libs into static libs
+    --release [mode]        Build in the release mode(: fast, safe, small)
+    --verbose               Print commands before executing them
+    --exclude [lib]         Exclude of the compile the provided lib (cannot be used with --only)
+    --only    [lib]         Compile only the provided list of libs (cannot be used with --exclude)
+    --static                Compile all libs into static libs
+    --check                 Check if the project is correctly formatted (format command only)
 
 commands:
-	build		Build all packages
-	test		Launch all tests
-	format		Format all the sources
-	- fmt
+    build                   Build all packages
+    test                    Launch all tests
+    format                  Format all the sources
+    - fmt
 "
 
 	exit 1
@@ -33,6 +35,8 @@ print_err() {
 PACKAGES=**/build.zig
 
 # === VARIABLES ===
+check=false
+release=no
 verbose=false
 static=false
 excludes=()
@@ -51,7 +55,17 @@ until [ -z "$1" ]; do
 		command=$1
 	else
 		case $1 in
+		--check) check=true ;;
+		--static) static=true ;;
 		--verbose) verbose=true ;;
+		--release)
+			release=$2
+			case $release in
+			fast|safe|small);;
+			*) show_usage "--release $release";
+			esac
+			shift_size=2
+		;;
 		--exclude)
 			excludes+=($2)
 			shift_size=2
@@ -59,9 +73,6 @@ until [ -z "$1" ]; do
 		--only)
 			only+=($2)
 			shift_size=2
-		;;
-		--static)
-			static=true
 		;;
 		*) show_usage $1 ;;
 		esac
@@ -80,13 +91,17 @@ case $command in
 build) zig_command="build";;
 test) zig_command="build test";;
 format|fmt)
-	zig fmt ./
-	echo "OK"
-	exit 0
+	ZFLAG=()
+	$check && ZFLAG+=("--check")
+
+	zig fmt ${ZFLAG[@]} .
+	exit $?
 ;;
+help) show_usage "" ;;
 *) show_usage $command ;;
 esac
 
+end_message="Finish"
 for build_file in $PACKAGES; do
 	folder=${build_file:0:-10}
 	if [[ ${exclude[@]} =~ $folder ]]; then
@@ -96,6 +111,9 @@ for build_file in $PACKAGES; do
 	if [ -z $only ] || [[ ${only[@]} =~ $folder ]]; then
 		ZFLAG=("--prefix ../zig-out")
 		$verbose && ZFLAG+=("--verbose")
+		if [ $release != "no" ]; then
+			$static && ZFLAG+=("--release=$release")
+		fi
 		if [ $folder != "utils" ]; then
 			$static && ZFLAG+=("-Dstatic")
 		fi
@@ -114,8 +132,9 @@ $ zig $zig_command ${ZFLAG[@]}
 
 		if [ $success != 0 ]; then
 			print_err "Failed to $zig_command package $folder"
+			end_message="Failed"
 		fi
 	fi
 done
 
-echo "OK"
+echo $end_message
