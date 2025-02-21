@@ -4,132 +4,72 @@ const Context = @import("./context.zig");
 
 const parser_zig = @import("./lib.zig");
 const Parser = parser_zig.Parser;
+const ParseResult = parser_zig.ParseResult;
 const StringParser = parser_zig.StringParser;
 
 const error_zig = @import("./error.zig");
 const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
-const OwnedValue = @import("./utils/owned_ref.zig").OwnedRef;
+const meta = @import("./utils/meta.zig");
+
 const Result = @import("./utils/types.zig").Result;
 
-const CharState = struct {
-    char: u8,
+const Pair = @import("utils").Pair;
 
-    const Self = @This();
-    pub const NotValue = void;
-
-    pub fn call(self: Self, c: u8) bool {
-        return self.char == c;
-    }
-
-    pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
-        const current_char = context.input[context.dirty_cursor];
-        if (current_char != self.char) {
-            return .{ .err = .{
-                .cursor = context.dirty_cursor,
-                .len = 1,
-                .input = context.input,
-
-                .kind = .{ .char = .{ .expected = self.char, .actual = current_char } },
-            } };
-        }
-
-        context.dirty_cursor += 1;
-
-        return .{ .ok = self.char };
-    }
-};
-
-pub fn char(expected_char: u8) Parser(u8, CharState) {
-    const parser = CharState{ .char = expected_char };
-    return Parser(u8, CharState).init(parser, CharState.process);
-}
-
-const OneOfState = struct {
-    chars: []const u8,
-
-    const Self = @This();
-    pub const NotValue = void;
-
-    pub fn call(self: Self, c: u8) bool {
-        for (self.chars) |one_of_c| {
-            if (one_of_c == c)
-                return true;
-        }
-        return false;
-    }
-
-    pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
-        const current_char = context.input[context.dirty_cursor];
-        for (self.chars) |one_of_char| {
-            if (current_char == one_of_char) {
-                context.dirty_cursor += 1;
-
-                return .{ .ok = current_char };
+pub fn char(comptime expected_char: u8) Parser(u8) {
+    return Parser(u8).init(struct {
+        pub fn call(input: []const u8) ParseResult(u8, []const u8) {
+            const first_char = input[0];
+            if (first_char != expected_char) {
+                return ParseResult(u8, []const u8).Err(.{
+                    .input = input,
+                    .kind = .{ .char = .{ .expected = expected_char, .actual = first_char } },
+                });
             }
+
+            return ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(first_char, input[1..]));
         }
-
-        return .{ .err = .{
-            .cursor = context.dirty_cursor,
-            .len = 1,
-            .input = context.input,
-
-            .kind = .{ .one_of = .{ .expected = self.chars, .actual = current_char } },
-        } };
-    }
-};
-
-pub fn one_of(expected_chars: []const u8) Parser(u8, OneOfState) {
-    const parser = OneOfState{ .chars = expected_chars };
-    return Parser(u8, OneOfState).init(parser, OneOfState.process);
+    });
 }
 
-const CharPredicateState = struct {
-    predicate: OwnedValue(fn (u8) bool),
+pub fn one_of(comptime expected_chars: []const u8) Parser(u8) {
+    return char_predicate(struct {
+        pub fn call(current_char: u8) bool {
+            for (expected_chars) |one_of_char| {
+                if (current_char == one_of_char) {
+                    return true;
+                }
+            }
 
-    const Self = @This();
-    pub const NotValue = void;
-
-    pub fn call(self: Self, c: u8) bool {
-        return switch (self.predicate) {
-            .owned => |owned| owned(c),
-            .borrowed => |borrowed| borrowed(c),
-        };
-    }
-
-    pub fn process(self: Self, context: *Context) Result(u8, ParseError(NotValue)) {
-        const current_char = context.input[context.dirty_cursor];
-        if (self.call(current_char)) {
-            context.dirty_cursor += 1;
-
-            return .{ .ok = current_char };
+            return false;
         }
+    });
+}
 
-        return .{ .err = .{
-            .cursor = context.dirty_cursor,
-            .len = 1,
-            .input = context.input,
+pub fn char_predicate(comptime raw_predicate: anytype) Parser(u8) {
+    const predicate = comptime meta.callable(fn(u8) bool, raw_predicate) orelse @compileError("The input predicate need to be callable.");
 
-            .kind = .{ .unexpected = current_char },
-        } };
-    }
-};
+    return Parser(u8).init(struct {
+        pub fn call(input: []const u8) ParseResult(u8, []const u8) {
+            const first_char = input[0];
+            if (!predicate(first_char)) {
+                return ParseResult(u8, []const u8).Err(.{
+                    .input = input,
+                    .kind = .{ .unexpected = first_char },
+                });
+            }
 
-pub fn char_predicate(predicate: anytype) Parser(u8, CharPredicateState) {
-    const PredicateParser = @TypeOf(predicate);
-    if (PredicateParser != fn (u8) bool and PredicateParser != *const fn (u8) bool)
-        @compileError("char_predicate can only take 'fn (u8) bool' or '*const fn (u8) bool'");
-
-    const parser = CharPredicateState{ .predicate = OwnedValue(fn (u8) bool).from_any(predicate) };
-    return Parser(u8, CharPredicateState).init(parser, CharPredicateState.process);
+            return ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(first_char, input[1..]));
+        }
+    });
 }
 
 pub const any_char = char_predicate(struct {
     fn call(_: u8) bool {
         return true;
     }
-}.call);
+});
 pub const alpha = char_predicate(std.ascii.isAlphabetic);
 pub const alphanum = char_predicate(std.ascii.isAlphanumeric);
 pub const digit = char_predicate(std.ascii.isDigit);
@@ -141,31 +81,26 @@ const testing = std.testing;
 test "parsing char" {
     const parser = char('(');
 
-    const result, const context = parser.run("(hello) world!");
-    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = '(' }, result);
-    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    const result = parser.run("(hello) world!");
+    try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init('(', "hello) world!")), result);
 }
 
 test "parsing one of chars" {
     const parser = one_of(&.{ '(', ')' });
 
-    const result, const context = parser.run("(hello) world!");
-    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = '(' }, result);
-    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    const result = parser.run("(hello) world!");
+    try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init('(', "hello) world!")), result);
 
-    const result2, const context2 = parser.run(")hello( world!");
-    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = ')' }, result2);
-    try testing.expectEqual(context2.dirty_cursor, context2.cursor);
+    const result2 = parser.run(")hello( world!");
+    try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(')', "hello( world!")), result2);
 }
 
 test "parsing alpha" {
     const parser = alpha;
 
-    const result, const context = parser.run("hello world!");
-    try testing.expectEqualDeep(Result(u8, ParseError(void)){ .ok = 'h' }, result);
-    try testing.expectEqual(context.dirty_cursor, context.cursor);
+    const result = parser.run("hello world!");
+    try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init('h', "ello world!")), result);
 
-    const result2, const context2 = parser.run(")hello( world!");
-    try testing.expectEqualDeep(ParseErrorKind(void){ .unexpected = ')' }, result2.err.kind);
-    try testing.expectEqual(context2.dirty_cursor, context2.cursor);
+    const result2 = parser.run(")hello( world!");
+    try testing.expectEqualDeep(ParseErrorKind{ .unexpected = ')' }, result2.err.kind);
 }

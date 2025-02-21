@@ -1,6 +1,19 @@
 // used because we cannot store value in the error in zig for now
 pub fn Result(comptime T: type, comptime E: type) type {
-    return union(enum) { ok: T, err: E };
+    return union(enum) {
+        ok: T,
+        err: E,
+
+        const Self = @This();
+
+        pub fn Ok(value: T) Self {
+            return Self { .ok = value };
+        }
+
+        pub fn Err(value: E) Self {
+            return Self { .err = value };
+        }
+    };
 }
 
 pub fn Expectation(comptime E: type, comptime A: type) type {

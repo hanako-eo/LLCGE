@@ -15,6 +15,47 @@ fn min_int_tag_type(x: anytype) type {
     return std.meta.Int(.unsigned, if (x <= 1) @intCast(x) else @intCast(@typeInfo(T).int.bits - @clz(x - 1)));
 }
 
+pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
+    const fn_info = switch (@typeInfo(Fn)) {
+        .@"fn" => |info| info,
+        else => @compileError("the Fn type need to be a function"),
+    };
+    const is_type = @TypeOf(parser) == type;
+    const ParserType = if(is_type) parser else @TypeOf(parser);
+    const type_info = @typeInfo(ParserType);
+
+    // test if the type of `parser` is exactly the same as `Fn`
+    if (type_info == .@"fn" and ParserType == Fn)
+        return parser;
+
+    // in the case of a "closure", we when the struct to have a `call` method
+    if (type_info == .@"struct" and @hasDecl(ParserType, "call")) {
+        const CallFn = @TypeOf(ParserType.call);
+
+        // checks whether the structure has a simple call function
+        // (as requested by the Fn type)
+        if (CallFn == Fn)
+            return ParserType.call;
+        
+        const call_info = @typeInfo(CallFn).@"fn";
+        // I assume that if `is_generic` is true and call takes itself as 1st
+        // parameter then it must have the form fn(@This(), ...) return_type
+        if (call_info.params.len >= 1 and call_info.params[0].type == ParserType and call_info.return_type == fn_info.return_type) {
+            if (is_type)
+                @compileError("The method call cannot be take a 'self'-like argument");
+
+            return struct {
+                fn call(input: call_info.params[1].type.?) call_info.return_type.? {
+                    return parser.call(input);
+                }
+            }.call;
+        }
+        
+    }
+
+    return null;
+}
+
 /// Get the attribute `attribute_name` in the struct `StructType`
 pub fn get_struct_attribute(comptime StructType: type, comptime attribute_name: []const u8) type {
     const struct_info = @typeInfo(StructType);
