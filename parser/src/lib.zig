@@ -3,9 +3,8 @@ const std = @import("std");
 pub const branch = @import("./branch.zig");
 pub const bytes = @import("./bytes.zig");
 pub const chars = @import("./chars.zig");
-pub const sequence = @import("./sequence.zig");
+// pub const sequence = @import("./sequence.zig");
 
-pub const Context = @import("./context.zig");
 pub const errors = @import("./error.zig");
 
 const ParseError = errors.ParseError;
@@ -24,6 +23,9 @@ pub fn ParseResult(comptime T: type, comptime U: type) type {
 /// Type for create a parser
 pub fn Parser(comptime T: type) type {
     return struct {
+        // this constante is need to be able to pass in the branches parser the resulting value of the parser
+        pub const Result = T;
+
         parse: fn([]const u8) ParseResult(T, []const u8),
 
         const Self = @This();
@@ -180,7 +182,7 @@ test "new parser ?" {
 pub const StringParser = Parser([]const u8);
 
 test {
-    // _ = branch;
+    _ = branch;
     _ = bytes;
     _ = chars;
     // _ = sequence;

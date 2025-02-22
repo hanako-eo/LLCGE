@@ -1,14 +1,10 @@
 const std = @import("std");
 
-const Context = @import("./context.zig");
-
 const parser_zig = @import("./lib.zig");
 const Parser = parser_zig.Parser;
 const ParseResult = parser_zig.ParseResult;
-const StringParser = parser_zig.StringParser;
 
 const error_zig = @import("./error.zig");
-const ParseError = error_zig.ParseError;
 const ParseErrorKind = error_zig.ParseErrorKind;
 
 const meta = @import("./utils/meta.zig");

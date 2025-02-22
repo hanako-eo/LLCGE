@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const ResultTypeParser = "Result";
 const Field = struct { name: [:0]const u8, type: type };
 
 /// returns the smallest natural integer type as a function of the number of elements `x`
@@ -28,7 +29,7 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
     if (type_info == .@"fn" and ParserType == Fn)
         return parser;
 
-    // in the case of a "closure", we when the struct to have a `call` method
+    // in the case of a "closure", we want the struct to have a `call` method
     if (type_info == .@"struct" and @hasDecl(ParserType, "call")) {
         const CallFn = @TypeOf(ParserType.call);
 
@@ -84,10 +85,10 @@ pub fn ParsersCommonValue(comptime parsers: anytype) type {
     if (fields.len == 0)
         @compileError("expected to have elements but the tuple or struct is empty");
 
-    const result_type_value = get_struct_attribute(fields[0].type, "Value");
+    const result_type_value = get_struct_attribute(fields[0].type, ResultTypeParser);
 
     for (fields[1..]) |f| {
-        const field_type_value = get_struct_attribute(f.type, "Value");
+        const field_type_value = get_struct_attribute(f.type, ResultTypeParser);
         if (result_type_value != field_type_value)
             @compileError(std.fmt.comptimePrint("incompatible types: '{s}' and '{s}'", .{ @typeName(result_type_value), @typeName(field_type_value) }));
     }
@@ -109,7 +110,7 @@ pub fn UnionFromParsers(comptime parsers: anytype) type {
     comptime var values: [fields.len]Field = undefined;
 
     for (fields, 0..) |f, i|
-        values[i] = .{ .name = f.name, .type = get_struct_attribute(f.type, "Value") };
+        values[i] = .{ .name = f.name, .type = get_struct_attribute(f.type, ResultTypeParser) };
 
     return CreateUnionEnum(values.len, values);
 }
@@ -159,7 +160,7 @@ pub fn StructFromParsers(comptime parsers: anytype) type {
     var real_len = 0;
 
     for (fields) |f| {
-        const T = get_struct_attribute(f.type, "Value");
+        const T = get_struct_attribute(f.type, ResultTypeParser);
         if (T == void)
             continue;
 
@@ -181,7 +182,7 @@ pub fn CreateUniqueStruct(comptime size: usize, comptime types: []Field, comptim
         struct_tuple_fields[i] = .{
             .name = field.name,
             .type = field.type,
-            .default_value = null,
+            .default_value_ptr = null,
             .is_comptime = false,
             .alignment = if (@sizeOf(field.type) > 0) @alignOf(field.type) else 0,
         };
@@ -206,20 +207,4 @@ pub fn StructLen(comptime T: type) comptime_int {
 
     const fields = parsers_type_info.@"struct".fields;
     return fields.len;
-}
-
-pub fn get_return_type(comptime T: type) type {
-    const info = @typeInfo(T);
-    if (info != .@"fn")
-        @compileError(std.fmt.comptimePrint("'{s}' is not a function type", .{@typeName(T)}));
-
-    return info.@"fn".return_type.?;
-}
-
-pub fn PtrTypeOf(comptime T: type) type {
-    const T_info = @typeInfo(T);
-    if (T_info != .pointer)
-        @compileError(std.fmt.comptimePrint("'{s}' is not a pointer", .{@typeName(T)}));
-
-    return T_info.pointer.child;
 }
