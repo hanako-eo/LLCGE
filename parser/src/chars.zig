@@ -13,6 +13,7 @@ const Result = @import("./utils/types.zig").Result;
 
 const Pair = @import("utils").Pair;
 
+/// Parse only the expected char.
 pub fn char(comptime expected_char: u8) Parser(u8) {
     return Parser(u8).init(struct {
         pub fn call(input: []const u8) ParseResult(u8, []const u8) {
@@ -29,6 +30,7 @@ pub fn char(comptime expected_char: u8) Parser(u8) {
     });
 }
 
+/// Parse between a list of expected chars.
 pub fn one_of(comptime expected_chars: []const u8) Parser(u8) {
     return char_predicate(struct {
         pub fn call(current_char: u8) bool {
@@ -43,8 +45,9 @@ pub fn one_of(comptime expected_chars: []const u8) Parser(u8) {
     });
 }
 
+/// Parse a char in function of a callable predicate.
 pub fn char_predicate(comptime raw_predicate: anytype) Parser(u8) {
-    const predicate = comptime meta.callable(fn(u8) bool, raw_predicate) orelse @compileError("The input predicate need to be callable.");
+    const predicate = comptime meta.callable(fn(u8) bool, raw_predicate) orelse @compileError("the input predicate must be callable.");
 
     return Parser(u8).init(struct {
         pub fn call(input: []const u8) ParseResult(u8, []const u8) {
@@ -61,15 +64,21 @@ pub fn char_predicate(comptime raw_predicate: anytype) Parser(u8) {
     });
 }
 
+/// Parse any char.
 pub const any_char = char_predicate(struct {
     fn call(_: u8) bool {
         return true;
     }
 });
+/// Parse ascii alphabetic char.
 pub const alpha = char_predicate(std.ascii.isAlphabetic);
+/// Parse ascii alphabetic or digit char.
 pub const alphanum = char_predicate(std.ascii.isAlphanumeric);
+/// Parse ascii digit char.
 pub const digit = char_predicate(std.ascii.isDigit);
+/// Parse ascii whitespace char.
 pub const whitespace = char_predicate(std.ascii.isWhitespace);
+/// Parse hexadecimal digit char.
 pub const hex = char_predicate(std.ascii.isHex);
 
 const testing = std.testing;

@@ -21,8 +21,4 @@ pub const ParseErrorKind = union(enum) {
     satisfy: []const u8,
     not_finished: void,
     finished: void,
-
-    allocation_error: AllocatorError,
-
-    // not: Unexpectation(N),
 };

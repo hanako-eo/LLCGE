@@ -3,7 +3,7 @@ const std = @import("std");
 pub const branch = @import("./branch.zig");
 pub const bytes = @import("./bytes.zig");
 pub const chars = @import("./chars.zig");
-// pub const sequence = @import("./sequence.zig");
+pub const sequence = @import("./sequence.zig");
 
 pub const errors = @import("./error.zig");
 
@@ -23,31 +23,40 @@ pub fn ParseResult(comptime T: type, comptime U: type) type {
 /// Type for create a parser
 pub fn Parser(comptime T: type) type {
     return struct {
-        // this constante is need to be able to pass in the branches parser the resulting value of the parser
+        // this constant is needed to be able to pass the resulting value to
+        // the branch parsers
         pub const Result = T;
 
+        // process function
         parse: fn([]const u8) ParseResult(T, []const u8),
 
         const Self = @This();
 
+        /// Initialize the parser with a `callable` argument.
         pub fn init(comptime parse: anytype) Self {
             const parse_function = comptime meta.callable(fn([]const u8) ParseResult(T, []const u8), parse) orelse
-                @compileError("The input parser is not callable (i.e. it's not a function or an other parser).");
+                @compileError("the input parser is not callable (i.e. it's not a function or an other parser).");
             return Self{ .parse = parse_function };
         }
 
+        /// Function used by the library to tell that a Parser(T) is callable,
+        /// prefer to use run instead. 
         pub fn call(comptime self: Self, input: []const u8) ParseResult(T, []const u8) {
             return self.parse(input);
         }
 
+        /// Run the parser and return the parsing result and the unconsumed
+        /// part of the input. 
         pub inline fn run(comptime self: Self, input: []const u8) ParseResult(T, []const u8) {
             return self.parse(input);
         }
 
+        /// Replace the parsing result of the parser by nothing.
         pub inline fn forgot(comptime self: Self) Parser(void) {
             return self.value(void, void{});
         }
 
+        /// Put the parsing result into an array.
         pub inline fn into_array(comptime self: Self) Parser([]const T) {
             return self.map([]const T, struct {
                 fn call(v: T) []const T {
@@ -56,6 +65,7 @@ pub fn Parser(comptime T: type) type {
             }.call);
         }
 
+        /// Replace the parsing result of the parser by a value of type `U`.
         pub inline fn value(comptime self: Self, comptime U: type, comptime v: U) Parser(U) {
             return self.map(U, struct {
                 pub fn call(_: T) U {
@@ -64,8 +74,9 @@ pub fn Parser(comptime T: type) type {
             });
         }
 
+        /// Map the parsing result of the parser by a value of type `U`.
         pub fn map(comptime self: Self, comptime U: type, comptime mapping: anytype) Parser(U) {
-            const map_fn = comptime meta.callable(fn (T) U, mapping) orelse @compileError("The map function need to be callable.");
+            const map_fn = comptime meta.callable(fn (T) U, mapping) orelse @compileError("the map function must be callable.");
             return Parser(U).init(struct {
                 pub fn call(input: []const u8) ParseResult(U, []const u8) {
                     const result = self.parse(input);
@@ -80,6 +91,8 @@ pub fn Parser(comptime T: type) type {
             });
         }
 
+        /// Execute normally the parser but if the result cannot be parser
+        /// (an error occured during the parsing) the result will be null.
         pub fn opt(comptime self: Self) Parser(?T) {
             return Parser(?T).init(struct {
                 pub fn call(input: []const u8) ParseResult(?T, []const u8) {
@@ -92,12 +105,7 @@ pub fn Parser(comptime T: type) type {
             });
         }
 
-        // TODO: ?
-        // pub fn not(comptime self: Self) Parser(void, NotState(T, S)) {
-        //     const state = NotState(T, S){ .parser = self };
-        //     return Parser(void, NotState(T, S)).init(state, NotState(T, S).process);
-        // }
-
+        /// Try to see if the parsing pass or not.
         pub fn recognize(comptime self: Self) Parser(bool) {
             return Parser(bool).init(struct {
                 pub fn call(input: []const u8) ParseResult(bool, []const u8) {
@@ -107,6 +115,7 @@ pub fn Parser(comptime T: type) type {
             });
         }
 
+        /// Execute normally the parser without consumed the input.
         pub fn peek(comptime self: Self) Parser(T) {
             return Parser(T).init(struct {
                 pub fn call(input: []const u8) ParseResult(T, []const u8) {
@@ -119,9 +128,11 @@ pub fn Parser(comptime T: type) type {
             });
         }
 
+        /// Execute normally the parser and check after if the result satify
+        /// some conditions.
         pub fn satisfy_fn(comptime self: Self, comptime condition: anytype, comptime message: anytype) Parser(T) {
-            const condition_fn = comptime meta.callable(fn (*const T) bool, condition) orelse @compileError("The condition need to be callable.");
-            const message_fn = comptime meta.callable(fn (*const T) []const u8, message) orelse @compileError("The message need to be callable.");
+            const condition_fn = comptime meta.callable(fn (*const T) bool, condition) orelse @compileError("the condition must be callable.");
+            const message_fn = comptime meta.callable(fn (*const T) []const u8, message) orelse @compileError("the message must be callable.");
 
             return Parser(T).init(struct {
                 pub fn call(input: []const u8) ParseResult(T, []const u8) {
@@ -138,6 +149,8 @@ pub fn Parser(comptime T: type) type {
             });
         }
 
+        /// Execute normally the parser and check after if the result satify
+        /// some conditions. (but take a literal instead of construct the message)
         pub inline fn satisfy(comptime self: Self, comptime condition: anytype, comptime message: []const u8) Parser(T) {
             return self.satisfy_fn(condition, struct {
                 fn call(_: *const T) []const u8 {
@@ -145,38 +158,7 @@ pub fn Parser(comptime T: type) type {
                 }
             }.call);
         }
-
-        // pub fn finished(comptime self: Self) Parser(T, FinishedState(T, S)) {
-        //     const result = self.parser.run_with_context_without_commit(context);
-        //     if (predicate(context))
-        //         return result;
-
-        //     return .{ .err = .{
-        //         .cursor = context.cursor,
-        //         .len = 0,
-        //         .input = context.input,
-
-        //         .kind = .not_finished,
-        //     } };
-        // }
-
-        // pub fn followed_by(comptime self: Self, lambda: anytype) Parser(T, FollowedByState(T, S)) {
-        //     const state = FollowedByState(T, S){ .lambda = OwnedRef(fn (u8) bool).from_any(lambda), .parser = self };
-        //     return Parser(T, FollowedByState(T, S)).init(state, FollowedByState(T, S).process);
-        // }
     };
-}
-
-test "new parser ?" {
-    const t = Parser(u8).init(struct {
-        pub fn call(input: []const u8) ParseResult(u8, []const u8) {
-            return .{ .ok = Pair(u8, []const u8).init(input[0], input[1..]) };
-        }
-    }).map(u8, struct {
-        pub fn call(x: u8) u8 { return x + 1; } 
-    }.call);
-
-    try std.testing.expectEqualDeep(ParseResult(u8, []const u8) { .ok = Pair(u8, []const u8).init('i', "ello") }, t.parse("hello"));
 }
 
 pub const StringParser = Parser([]const u8);
@@ -185,11 +167,21 @@ test {
     _ = branch;
     _ = bytes;
     _ = chars;
-    // _ = sequence;
+    _ = sequence;
 }
 
 const testing = std.testing;
 const tag = bytes.tag;
+
+test "parser with a custom behaviour" {
+    const parser = Parser(u8).init(struct {
+        pub fn call(input: []const u8) ParseResult(u8, []const u8) {
+            return .{ .ok = Pair(u8, []const u8).init(input[0] + 1, input[1..]) };
+        }
+    });
+
+    try std.testing.expectEqualDeep(ParseResult(u8, []const u8) { .ok = Pair(u8, []const u8).init('i', "ello") }, parser.run("hello"));
+}
 
 const Hello = struct {};
 fn call_map(_: []const u8) Hello {
@@ -215,16 +207,6 @@ test "optional parsing" {
     const result2 = parser.run("world");
     try testing.expectEqualDeep(ParseResult(?[]const u8, []const u8).Ok(Pair(?[]const u8, []const u8).init(null, "world")), result2);
 }
-
-// test "not parsing" {
-//     const parser = tag("hello").not();
-
-//     const result = parser.run("hello");
-//     try testing.expectEqualDeep(ParseErrorKind([]const u8){ .not = "hello" }, result.err.kind);
-
-//     const result2 = parser.run("world");
-//     try testing.expectEqualDeep(.ok, result2);
-// }
 
 test "recognize without peeking parsing" {
     const parser = tag("hello").recognize();
@@ -260,33 +242,3 @@ test "parsing with satisfaction of condition" {
     const result2 = parser.satisfy(safisfy_false, "expected value").run("hello");
     try testing.expectEqualDeep(ParseErrorKind{ .satisfy = "expected value" }, result2.err.kind);
 }
-
-// test "check if the parser parse all" {
-//     const parser = tag("hello").finished();
-//     const parser2 = tag("hello").finished_z();
-
-//     const result = parser.run_without_commit("hello");
-//     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
-
-//     const result2 = parser.run_without_commit("hello!");
-//     try testing.expectEqualDeep(.not_finished, result2.err.kind);
-
-//     const result3 = parser2.run_without_commit("hello");
-//     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result3);
-
-//     const result4 = parser2.run_without_commit("hello!");
-//     try testing.expectEqualDeep(.not_finished, result4.err.kind);
-// }
-
-// test "check if 'hello' is followed by a whitespace char or nothing" {
-//     const parser = tag("hello").followed_by(std.ascii.isWhitespace);
-
-//     const result = parser.run("hello");
-//     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result);
-
-//     const result2 = parser.run("hello world");
-//     try testing.expectEqualDeep(Result([]const u8, ParseError(void)){ .ok = "hello" }, result2);
-
-//     const result3 = parser.run("helloo");
-//     try testing.expectEqualDeep(ParseErrorKind{ .unexpected = 'o' }, result3.err.kind);
-// }

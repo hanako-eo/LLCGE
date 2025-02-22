@@ -17,6 +17,8 @@ const Result = @import("./utils/types.zig").Result;
 
 const Pair = @import("utils").Pair;
 
+/// Tests a list of parsers one by one until one succeeds. Each parser can have
+/// it's own Result type.
 pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers)) {
     const SelectUnion = UnionFromParsers(parsers);
 
@@ -44,6 +46,8 @@ pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers)) {
     });
 }
 
+/// Tests a list of parsers one by one until one succeeds. All parsers must
+/// produce the same Result type.
 pub fn choice(comptime parsers: anytype) Parser(ParsersCommonValue(parsers)) {
     const T = ParsersCommonValue(parsers);
 
@@ -70,6 +74,7 @@ pub fn choice(comptime parsers: anytype) Parser(ParsersCommonValue(parsers)) {
     });
 }
 
+/// Applies a list of parsers in the order.
 pub fn chain(comptime parsers: anytype) Parser(StructFromParsers(parsers)) {
     const ChainStruct = StructFromParsers(parsers);
     const struct_fields = @typeInfo(ChainStruct).@"struct".fields;

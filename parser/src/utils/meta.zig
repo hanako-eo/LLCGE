@@ -19,7 +19,7 @@ fn min_int_tag_type(x: anytype) type {
 pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
     const fn_info = switch (@typeInfo(Fn)) {
         .@"fn" => |info| info,
-        else => @compileError("the Fn type need to be a function"),
+        else => @compileError("the Fn type must be a function"),
     };
     const is_type = @TypeOf(parser) == type;
     const ParserType = if(is_type) parser else @TypeOf(parser);
@@ -43,7 +43,7 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
         // parameter then it must have the form fn(@This(), ...) return_type
         if (call_info.params.len >= 1 and call_info.params[0].type == ParserType and call_info.return_type == fn_info.return_type) {
             if (is_type)
-                @compileError("The method call cannot be take a 'self'-like argument");
+                @compileError("the method call cannot be take a 'self'-like argument");
 
             return struct {
                 fn call(input: call_info.params[1].type.?) call_info.return_type.? {
@@ -57,21 +57,28 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
     return null;
 }
 
+pub fn is_parser_like(comptime parser: anytype) bool {
+    const T = @TypeOf(parser);
+    return @hasDecl(T, "run") and @hasDecl(T, ResultTypeParser);
+}
+
+pub fn ParserLikeResult(comptime parser: anytype) type {
+    if (!is_parser_like(parser))
+        @compileError("the input must be a parser (or look like a parser).");
+
+    const T = @TypeOf(parser);
+    return get_struct_attribute(T, ResultTypeParser);
+}
+
 /// Get the attribute `attribute_name` in the struct `StructType`
 pub fn get_struct_attribute(comptime StructType: type, comptime attribute_name: []const u8) type {
-    const struct_info = @typeInfo(StructType);
+    if (@typeInfo(StructType) != .@"struct")
+        @compileError("the input must be a structure");
 
-    if (struct_info != .@"struct")
-        @compileError("The input need to be a structure");
+    if (!@hasDecl(StructType, attribute_name))
+        @compileError(std.fmt.comptimePrint("the structure {s} need to have a const '{s}' (a type)", .{ @typeName(StructType), attribute_name }));
 
-    const decls = struct_info.@"struct".decls;
-
-    for (decls) |decl| {
-        if (std.mem.eql(u8, decl.name, attribute_name))
-            return @field(StructType, attribute_name);
-    }
-
-    @compileError(std.fmt.comptimePrint("The structure {s} need to have a const '{s}' (a type)", .{ @typeName(StructType), attribute_name }));
+    return @field(StructType, attribute_name);
 }
 
 /// Check in a list of parser if each parser has the same Value

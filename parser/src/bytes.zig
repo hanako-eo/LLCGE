@@ -14,6 +14,7 @@ const Result = @import("./utils/types.zig").Result;
 
 const Pair = @import("utils").Pair;
 
+/// Parse a list of chained chars.
 pub fn tag(comptime expected_tag: []const u8) StringParser {
     return StringParser.init(struct {
         pub fn call(input: []const u8) ParseResult([]const u8, []const u8) {
@@ -43,7 +44,7 @@ fn take_while_parser(comptime T: type, comptime predicate: fn([]const u8) ParseR
                         final_input = pair.second;
                         cursor += if (T == u8) 1
                             else if (T == []const u8) pair.first.len
-                            else @compileError("need to be a 'u8' or '[]const u8'");
+                            else @compileError("T must be a 'u8' or '[]const u8'");
                     }
                 }
             }
@@ -66,6 +67,7 @@ fn take_while_char(comptime predicate: fn(u8) bool) StringParser {
     });
 }
 
+/// Parse the input while the callable parser return a result.
 pub fn take_while(comptime parser: anytype) StringParser {
     if (comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), parser)) |predicate| {
         return take_while_parser([]const u8, predicate);
@@ -75,9 +77,10 @@ pub fn take_while(comptime parser: anytype) StringParser {
         return take_while_char(predicate);
     }
 
-    @compileError("The input parser need to be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8)' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
+    @compileError("the input parser must be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8)' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
 }
 
+/// Parse the input until the callable parser return a result.
 pub fn take_until(comptime parser: anytype) StringParser {
     const predicate = if (comptime (meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), parser) orelse meta.callable(fn([]const u8) ParseResult(u8, []const u8), parser))) |predicate| struct {
         fn call(input: []const u8) bool {
@@ -89,7 +92,7 @@ pub fn take_until(comptime parser: anytype) StringParser {
             return predicate(input[0]);
         }
     }.call
-    else @compileError("The input parser need to be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
+    else @compileError("the input parser must be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
 
     return StringParser.init(struct {
         pub fn call(input: []const u8) ParseResult([]const u8, []const u8) {
@@ -103,9 +106,10 @@ pub fn take_until(comptime parser: anytype) StringParser {
     });
 }
 
+/// parse the input as long as this is possible and there is no character to escape.
 pub fn escaped(comptime raw_parser: anytype, comptime control_char: u8, comptime raw_escapable: anytype) StringParser {
-    const parser = comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), raw_parser) orelse @compileError("The input parser need to be callable.");
-    const escapable = comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), raw_escapable) orelse @compileError("The input escapable parser need to be callable.");
+    const parser = comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), raw_parser) orelse @compileError("the input parser must be callable.");
+    const escapable = comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), raw_escapable) orelse @compileError("the input escapable parser must be callable.");
 
     return StringParser.init(struct {
         fn process_escape(input: []const u8) ?ParseResult([]const u8, []const u8) {
