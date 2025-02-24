@@ -48,14 +48,14 @@ pub fn terminated(comptime first: anytype, comptime second: anytype) Parser(meta
 
             return switch (second.run(first_result.ok.second)) {
                 .err => |err| ParseResult(T, []const u8).Err(err),
-                .ok => |second_result| ParseResult(T, []const u8).Ok(Pair(T, []const u8).init(first_result.ok.first, second_result.second))
+                .ok => |second_result| ParseResult(T, []const u8).Ok(Pair(T, []const u8).init(first_result.ok.first, second_result.second)),
             };
         }
     });
 }
 
 /// Parse all three given parser and ignore the result of the first and third
-/// to only get the parsing result of the second. 
+/// to only get the parsing result of the second.
 pub inline fn delimited(comptime first: anytype, comptime second: anytype, comptime third: anytype) Parser(meta.ParserLikeResult(second)) {
     return preceded(first, terminated(second, third));
 }

@@ -25,7 +25,10 @@ pub fn char(comptime expected_char: u8) Parser(u8) {
                 });
             }
 
-            return ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(first_char, input[1..]));
+            return ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(
+                first_char,
+                input[1..],
+            ));
         }
     });
 }
@@ -47,7 +50,7 @@ pub fn one_of(comptime expected_chars: []const u8) Parser(u8) {
 
 /// Parse a char in function of a callable predicate.
 pub fn char_predicate(comptime raw_predicate: anytype) Parser(u8) {
-    const predicate = comptime meta.callable(fn(u8) bool, raw_predicate) orelse @compileError("the input predicate must be callable.");
+    const predicate = comptime meta.callable(fn (u8) bool, raw_predicate) orelse @compileError("the input predicate must be callable.");
 
     return Parser(u8).init(struct {
         pub fn call(input: []const u8) ParseResult(u8, []const u8) {
@@ -59,14 +62,31 @@ pub fn char_predicate(comptime raw_predicate: anytype) Parser(u8) {
                 });
             }
 
-            return ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(first_char, input[1..]));
+            return ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(
+                first_char,
+                input[1..],
+            ));
         }
     });
 }
 
+fn isBinary(c: u8) bool {
+    return switch (c) {
+        '0'...'7' => true,
+        else => false,
+    };
+}
+
+fn isOctal(c: u8) bool {
+    return switch (c) {
+        '0'...'7' => true,
+        else => false,
+    };
+}
+
 /// Parse any char.
 pub const any_char = char_predicate(struct {
-    fn call(_: u8) bool {
+    pub fn call(_: u8) bool {
         return true;
     }
 });
@@ -74,12 +94,16 @@ pub const any_char = char_predicate(struct {
 pub const alpha = char_predicate(std.ascii.isAlphabetic);
 /// Parse ascii alphabetic or digit char.
 pub const alphanum = char_predicate(std.ascii.isAlphanumeric);
+/// Parse octal digit char.
+pub const binary = char_predicate(isBinary);
+/// Parse octal digit char.
+pub const octal = char_predicate(isOctal);
 /// Parse ascii digit char.
 pub const digit = char_predicate(std.ascii.isDigit);
-/// Parse ascii whitespace char.
-pub const whitespace = char_predicate(std.ascii.isWhitespace);
 /// Parse hexadecimal digit char.
 pub const hex = char_predicate(std.ascii.isHex);
+/// Parse ascii whitespace char.
+pub const whitespace = char_predicate(std.ascii.isWhitespace);
 
 const testing = std.testing;
 

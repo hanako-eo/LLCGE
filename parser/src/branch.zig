@@ -33,7 +33,10 @@ pub fn select(comptime parsers: anytype) Parser(UnionFromParsers(parsers)) {
             inline for (parsers, 0..) |parser, i| {
                 const result = parser.run(input);
                 if (result == .ok) {
-                    return ParseResult(SelectUnion, []const u8).Ok(Pair(SelectUnion, []const u8).init(@unionInit(SelectUnion, fields[i].name, result.ok.first), result.ok.second));
+                    return ParseResult(SelectUnion, []const u8).Ok(Pair(SelectUnion, []const u8).init(
+                        @unionInit(SelectUnion, fields[i].name, result.ok.first),
+                        result.ok.second,
+                    ));
                 }
 
                 // test if it's the end of the loop and return the last err in
@@ -98,11 +101,14 @@ pub fn chain(comptime parsers: anytype) Parser(StructFromParsers(parsers)) {
                     @field(final_result, struct_fields[i].name) = result.ok.first;
                     i += 1;
                 }
-                
+
                 input = result.ok.second;
             }
 
-            return ParseResult(ChainStruct, []const u8).Ok(Pair(ChainStruct, []const u8).init(final_result, input));
+            return ParseResult(ChainStruct, []const u8).Ok(Pair(ChainStruct, []const u8).init(
+                final_result,
+                input,
+            ));
         }
     });
 }

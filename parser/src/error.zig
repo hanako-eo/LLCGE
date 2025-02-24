@@ -21,4 +21,5 @@ pub const ParseErrorKind = union(enum) {
     satisfy: []const u8,
     not_finished: void,
     finished: void,
+    unsatify_min_patern: ExpectationSimple(usize),
 };

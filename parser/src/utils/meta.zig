@@ -22,7 +22,7 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
         else => @compileError("the Fn type must be a function"),
     };
     const is_type = @TypeOf(parser) == type;
-    const ParserType = if(is_type) parser else @TypeOf(parser);
+    const ParserType = if (is_type) parser else @TypeOf(parser);
     const type_info = @typeInfo(ParserType);
 
     // test if the type of `parser` is exactly the same as `Fn`
@@ -37,7 +37,7 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
         // (as requested by the Fn type)
         if (CallFn == Fn)
             return ParserType.call;
-        
+
         const call_info = @typeInfo(CallFn).@"fn";
         // I assume that if `is_generic` is true and call takes itself as 1st
         // parameter then it must have the form fn(@This(), ...) return_type
@@ -51,7 +51,6 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
                 }
             }.call;
         }
-        
     }
 
     return null;
@@ -71,7 +70,8 @@ pub fn ParserLikeResult(comptime parser: anytype) type {
 }
 
 /// Get the attribute `attribute_name` in the struct `StructType`
-pub fn get_struct_attribute(comptime StructType: type, comptime attribute_name: []const u8) type {
+pub fn get_struct_attribute(comptime T: type, comptime attribute_name: []const u8) type {
+    const StructType = if (@typeInfo(T) == .pointer) @typeInfo(T).pointer.child else T;
     if (@typeInfo(StructType) != .@"struct")
         @compileError("the input must be a structure");
 

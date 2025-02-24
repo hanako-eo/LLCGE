@@ -9,7 +9,7 @@ pub fn Pair(comptime K: type, comptime V: type) type {
         const Self = @This();
 
         pub fn init(first: K, second: V) Self {
-            return Self { .first = first, .second = second };
+            return Self{ .first = first, .second = second };
         }
     };
 }

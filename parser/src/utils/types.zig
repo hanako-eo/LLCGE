@@ -7,11 +7,11 @@ pub fn Result(comptime T: type, comptime E: type) type {
         const Self = @This();
 
         pub fn Ok(value: T) Self {
-            return Self { .ok = value };
+            return Self{ .ok = value };
         }
 
         pub fn Err(value: E) Self {
-            return Self { .err = value };
+            return Self{ .err = value };
         }
     };
 }

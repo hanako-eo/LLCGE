@@ -28,25 +28,25 @@ pub fn Parser(comptime T: type) type {
         pub const Result = T;
 
         // process function
-        parse: fn([]const u8) ParseResult(T, []const u8),
+        parse: fn ([]const u8) ParseResult(T, []const u8),
 
         const Self = @This();
 
         /// Initialize the parser with a `callable` argument.
         pub fn init(comptime parse: anytype) Self {
-            const parse_function = comptime meta.callable(fn([]const u8) ParseResult(T, []const u8), parse) orelse
+            const parse_function = comptime meta.callable(fn ([]const u8) ParseResult(T, []const u8), parse) orelse
                 @compileError("the input parser is not callable (i.e. it's not a function or an other parser).");
             return Self{ .parse = parse_function };
         }
 
         /// Function used by the library to tell that a Parser(T) is callable,
-        /// prefer to use run instead. 
+        /// prefer to use run instead.
         pub fn call(comptime self: Self, input: []const u8) ParseResult(T, []const u8) {
             return self.parse(input);
         }
 
         /// Run the parser and return the parsing result and the unconsumed
-        /// part of the input. 
+        /// part of the input.
         pub inline fn run(comptime self: Self, input: []const u8) ParseResult(T, []const u8) {
             return self.parse(input);
         }
@@ -83,9 +83,9 @@ pub fn Parser(comptime T: type) type {
                     return switch (result) {
                         .ok => ParseResult(U, []const u8).Ok(Pair(U, []const u8).init(
                             map_fn(result.ok.first),
-                            result.ok.second
+                            result.ok.second,
                         )),
-                        .err => |err| ParseResult(U, []const u8).Err(err)
+                        .err => |err| ParseResult(U, []const u8).Err(err),
                     };
                 }
             });
@@ -98,8 +98,14 @@ pub fn Parser(comptime T: type) type {
                 pub fn call(input: []const u8) ParseResult(?T, []const u8) {
                     const result = self.parse(input);
                     return switch (result) {
-                        .ok => |content| ParseResult(?T, []const u8).Ok(Pair(?T, []const u8).init(content.first, content.second)),
-                        .err => ParseResult(?T, []const u8).Ok(Pair(?T, []const u8).init(null, input))
+                        .ok => |content| ParseResult(?T, []const u8).Ok(Pair(?T, []const u8).init(
+                            content.first,
+                            content.second,
+                        )),
+                        .err => ParseResult(?T, []const u8).Ok(Pair(?T, []const u8).init(
+                            null,
+                            input,
+                        )),
                     };
                 }
             });
@@ -110,7 +116,10 @@ pub fn Parser(comptime T: type) type {
             return Parser(bool).init(struct {
                 pub fn call(input: []const u8) ParseResult(bool, []const u8) {
                     const result = self.parse(input);
-                    return ParseResult(bool, []const u8).Ok(Pair(bool, []const u8).init(result == .ok, input));
+                    return ParseResult(bool, []const u8).Ok(Pair(bool, []const u8).init(
+                        result == .ok,
+                        input,
+                    ));
                 }
             });
         }
@@ -121,8 +130,11 @@ pub fn Parser(comptime T: type) type {
                 pub fn call(input: []const u8) ParseResult(T, []const u8) {
                     const result = self.parse(input);
                     return switch (result) {
-                        .ok => |content| ParseResult(T, []const u8).Ok(Pair(T, []const u8).init(content.first, input)),
-                        .err => result
+                        .ok => |content| ParseResult(T, []const u8).Ok(Pair(T, []const u8).init(
+                            content.first,
+                            input,
+                        )),
+                        .err => result,
                     };
                 }
             });
@@ -158,6 +170,14 @@ pub fn Parser(comptime T: type) type {
                 }
             }.call);
         }
+
+        pub inline fn and_then(comptime self: Self, comptime other: anytype) Parser(meta.StructFromParsers(.{ self, other })) {
+            return branch.chain(.{ self, other });
+        }
+
+        pub inline fn or_else(comptime self: Self, comptime other: anytype) Parser(T) {
+            return branch.choice(.{ self, other });
+        }
     };
 }
 
@@ -180,7 +200,7 @@ test "parser with a custom behaviour" {
         }
     });
 
-    try std.testing.expectEqualDeep(ParseResult(u8, []const u8) { .ok = Pair(u8, []const u8).init('i', "ello") }, parser.run("hello"));
+    try std.testing.expectEqualDeep(ParseResult(u8, []const u8){ .ok = Pair(u8, []const u8).init('i', "ello") }, parser.run("hello"));
 }
 
 const Hello = struct {};

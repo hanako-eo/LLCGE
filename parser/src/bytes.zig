@@ -14,6 +14,41 @@ const Result = @import("./utils/types.zig").Result;
 
 const Pair = @import("utils").Pair;
 
+pub const LoopPattern = union(enum) {
+    /// Ensures that the parsing loop is called as many times as possible.
+    many_times,
+    /// Ensures that the parsing loop is called at least once.
+    at_least_once,
+    /// Ensures that the parsing loop is called at least N times
+    at_least_n: usize,
+    /// Ensures that the parsing loop is called between N and M times
+    range: struct { usize, usize },
+
+    const Self = @This();
+
+    fn min(self: Self) usize {
+        return switch (self) {
+            .many_times => 0,
+            .at_least_once => 1,
+            .at_least_n => |n| n,
+            .range => |range| range.@"0",
+        };
+    }
+
+    fn max(self: Self) usize {
+        return switch (self) {
+            .range => |range| range.@"1",
+            // 0 means no max
+            else => 0,
+        };
+    }
+};
+
+inline fn length(comptime T: type, value: T) usize {
+    if (@typeInfo(T) == .array) return value.len;
+    return 1;
+}
+
 /// Parse a list of chained chars.
 pub fn tag(comptime expected_tag: []const u8) StringParser {
     return StringParser.init(struct {
@@ -27,97 +62,161 @@ pub fn tag(comptime expected_tag: []const u8) StringParser {
                 });
             }
 
-            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(expected_tag, input[expected_tag.len..]));
+            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(
+                expected_tag,
+                input[expected_tag.len..],
+            ));
         }
     });
 }
 
-fn take_while_parser(comptime T: type, comptime predicate: fn([]const u8) ParseResult(T, []const u8)) StringParser {
+fn take_while_parser(comptime T: type, comptime predicate: fn ([]const u8) ParseResult(T, []const u8), comptime pattern: LoopPattern) StringParser {
+    const min = pattern.min();
+    const max = pattern.max();
     return StringParser.init(struct {
         pub fn call(input: []const u8) ParseResult([]const u8, []const u8) {
             var cursor: usize = 0;
+            var iteration: usize = 0;
             var final_input = input;
             while (cursor < input.len) {
+                if (max > 0 and iteration == max)
+                    break;
+
                 switch (predicate(final_input)) {
                     .err => break,
                     .ok => |pair| {
                         final_input = pair.second;
-                        cursor += if (T == u8) 1
-                            else if (T == []const u8) pair.first.len
-                            else @compileError("T must be a 'u8' or '[]const u8'");
-                    }
+                        cursor += length(T, pair.first);
+                    },
                 }
+                iteration += 1;
             }
 
-            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(input[0..cursor], final_input));
+            if (min > iteration)
+                return ParseResult([]const u8, []const u8).Err(.{ .input = input, .kind = .{
+                    .unsatify_min_patern = .{
+                        .expected = min,
+                        .actual = iteration,
+                    },
+                } });
+
+            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(
+                input[0..cursor],
+                final_input,
+            ));
         }
     });
 }
 
-fn take_while_char(comptime predicate: fn(u8) bool) StringParser {
+fn take_while_char(comptime predicate: fn (u8) bool, comptime pattern: LoopPattern) StringParser {
+    const min = pattern.min();
+    const max = pattern.max();
     return StringParser.init(struct {
         pub fn call(input: []const u8) ParseResult([]const u8, []const u8) {
             var cursor: usize = 0;
             while (cursor < input.len and predicate(input[cursor])) {
+                if (max > 0 and cursor == max)
+                    break;
+
                 cursor += 1;
             }
 
-            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(input[0..cursor], input[cursor..]));
+            if (min > cursor)
+                return ParseResult([]const u8, []const u8).Err(.{ .input = input, .kind = .{
+                    .unsatify_min_patern = .{
+                        .expected = min,
+                        .actual = cursor,
+                    },
+                } });
+
+            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(
+                input[0..cursor],
+                input[cursor..],
+            ));
         }
     });
 }
 
 /// Parse the input while the callable parser return a result.
-pub fn take_while(comptime parser: anytype) StringParser {
-    if (comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), parser)) |predicate| {
-        return take_while_parser([]const u8, predicate);
-    } else if (comptime meta.callable(fn([]const u8) ParseResult(u8, []const u8), parser)) |predicate| {
-        return take_while_parser(u8, predicate);
-    } else if (comptime meta.callable(fn(u8) bool, parser)) |predicate| {
-        return take_while_char(predicate);
+pub fn take_while(comptime parser: anytype, comptime pattern: LoopPattern) StringParser {
+    if (comptime meta.callable(fn ([]const u8) ParseResult([]const u8, []const u8), parser)) |predicate| {
+        return take_while_parser([]const u8, predicate, pattern);
+    } else if (comptime meta.callable(fn ([]const u8) ParseResult(u8, []const u8), parser)) |predicate| {
+        return take_while_parser(u8, predicate, pattern);
+    } else if (comptime meta.callable(fn (u8) bool, parser)) |predicate| {
+        return take_while_char(predicate, pattern);
     }
 
     @compileError("the input parser must be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8)' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
 }
 
 /// Parse the input until the callable parser return a result.
-pub fn take_until(comptime parser: anytype) StringParser {
-    const predicate = if (comptime (meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), parser) orelse meta.callable(fn([]const u8) ParseResult(u8, []const u8), parser))) |predicate| struct {
+pub fn take_until(comptime parser: anytype, comptime pattern: LoopPattern) StringParser {
+    const predicate = if (comptime (meta.callable(fn ([]const u8) ParseResult([]const u8, []const u8), parser) orelse meta.callable(fn ([]const u8) ParseResult(u8, []const u8), parser))) |predicate| struct {
         fn call(input: []const u8) bool {
             return predicate(input) == .ok;
         }
-    }.call
-    else if (comptime meta.callable(fn(u8) bool, parser)) |predicate|  struct {
+    }.call else if (comptime meta.callable(fn (u8) bool, parser)) |predicate| struct {
         fn call(input: []const u8) bool {
             return predicate(input[0]);
         }
-    }.call
-    else @compileError("the input parser must be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
+    }.call else @compileError("the input parser must be callable like a 'fn([]const u8) ParseResult([]const u8, []const u8' or 'fn([]const u8) ParseResult(u8, []const u8)' or 'fn(u8) bool'");
 
+    const min = pattern.min();
+    const max = pattern.max();
     return StringParser.init(struct {
         pub fn call(input: []const u8) ParseResult([]const u8, []const u8) {
             var cursor: usize = 0;
             while (cursor < input.len and !predicate(input[cursor..])) {
+                if (max > 0 and cursor == max)
+                    break;
+
                 cursor += 1;
             }
 
-            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(input[0..cursor], input[cursor..]));
+            if (min > cursor)
+                return ParseResult([]const u8, []const u8).Err(.{ .input = input, .kind = .{
+                    .unsatify_min_patern = .{
+                        .expected = min,
+                        .actual = cursor,
+                    },
+                } });
+
+            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(
+                input[0..cursor],
+                input[cursor..],
+            ));
         }
     });
 }
 
 /// parse the input as long as this is possible and there is no character to escape.
 pub fn escaped(comptime raw_parser: anytype, comptime control_char: u8, comptime raw_escapable: anytype) StringParser {
-    const parser = comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), raw_parser) orelse @compileError("the input parser must be callable.");
-    const escapable = comptime meta.callable(fn([]const u8) ParseResult([]const u8, []const u8), raw_escapable) orelse @compileError("the input escapable parser must be callable.");
+    const parser = comptime meta.callable(fn ([]const u8) ParseResult([]const u8, []const u8), raw_parser) orelse
+        @compileError("the input parser must be callable.");
+    const escapable, const EscapeType = if (comptime meta.callable(fn ([]const u8) ParseResult([]const u8, []const u8), raw_escapable)) |escapable_str|
+        .{ escapable_str, []const u8 }
+    else if (comptime meta.callable(fn ([]const u8) ParseResult(u8, []const u8), raw_escapable)) |escapable_char|
+        .{ escapable_char, u8 }
+    else
+        @compileError("the input escapable parser must be callable.");
 
     return StringParser.init(struct {
-        fn process_escape(input: []const u8) ?ParseResult([]const u8, []const u8) {
+        fn process_escape(input: []const u8) ?ParseResult(usize, []const u8) {
             if (input.len == 0 or input[0] != control_char)
                 return null;
 
+            if (input.len == 1)
+                return ParseResult(usize, []const u8).Err(.{
+                    .input = input,
+                    .kind = .finished,
+                });
+
             return switch (escapable(input[1..])) {
-                .ok => |pair| ParseResult(usize, []const u8).Ok(Pair(usize, []const u8).init(pair.first.len + 1, pair.second)),
+                .ok => |pair| ParseResult(usize, []const u8).Ok(Pair(usize, []const u8).init(
+                    length(EscapeType, pair.first) + 1,
+                    pair.second,
+                )),
                 .err => |err| ParseResult(usize, []const u8).Err(err),
             };
         }
@@ -127,7 +226,10 @@ pub fn escaped(comptime raw_parser: anytype, comptime control_char: u8, comptime
                 return null;
 
             return switch (parser(input)) {
-                .ok => |pair| ParseResult(usize, []const u8).Ok(Pair(usize, []const u8).init(pair.first.len, pair.second)),
+                .ok => |pair| ParseResult(usize, []const u8).Ok(Pair(usize, []const u8).init(
+                    pair.first.len,
+                    pair.second,
+                )),
                 .err => |err| ParseResult(usize, []const u8).Err(err),
             };
         }
@@ -155,16 +257,19 @@ pub fn escaped(comptime raw_parser: anytype, comptime control_char: u8, comptime
             }
 
             if (result) |r| switch (r) {
-                .err => |err| return ParseResult(usize, []const u8).Err(err),
-                .ok => |pair| cursor += pair.first
+                .err => |err| return ParseResult([]const u8, []const u8).Err(err),
+                .ok => |pair| cursor += pair.first,
             };
 
             if (escaped_result) |r| switch (r) {
-                .err => |err| return ParseResult(usize, []const u8).Err(err),
-                .ok => |pair| cursor += pair.first
+                .err => |err| return ParseResult([]const u8, []const u8).Err(err),
+                .ok => |pair| cursor += pair.first,
             };
 
-            return ParseResult([]const u8, []const u8).Ok(Pair(usize, []const u8).init(input[0..cursor], input[cursor..]));
+            return ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init(
+                input[0..cursor],
+                input[cursor..],
+            ));
         }
     });
 }
@@ -187,56 +292,91 @@ test "parsing tag" {
 test "parsing while is a alpha" {
     const alpha = @import("./chars.zig").alpha;
 
-    const parser = take_while(std.ascii.isAlphabetic);
-    const parser2 = take_while(alpha);
+    const parser = take_while(std.ascii.isAlphabetic, .many_times);
+    const parser2 = take_while(alpha, .many_times);
+    const parser3 = take_while(alpha, .at_least_once);
+    const parser4 = take_while(alpha, .{ .range = .{ 0, 2 } });
+    const parser5 = take_while(std.ascii.isAlphabetic, .{ .range = .{ 1, 2 } });
 
     const result = parser.run("hello");
     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "")), result);
 
     const result2 = parser2.run("hello");
     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "")), result2);
+
+    const result3 = parser3.run("hello");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "")), result3);
+
+    const result4 = parser3.run("");
+    try testing.expectEqualDeep(ParseErrorKind{ .unsatify_min_patern = .{ .expected = 1, .actual = 0 } }, result4.err.kind);
+
+    const result5 = parser4.run("hello");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("he", "llo")), result5);
+
+    const result6 = parser5.run("");
+    try testing.expectEqualDeep(ParseErrorKind{ .unsatify_min_patern = .{ .expected = 1, .actual = 0 } }, result6.err.kind);
+
+    const result7 = parser5.run("hello");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("he", "llo")), result7);
 }
 
 test "parsing until is a num" {
     const digit = @import("./chars.zig").digit;
 
-    const parser = take_until(std.ascii.isDigit);
-    const parser2 = take_until(digit);
+    const parser = take_until(std.ascii.isDigit, .many_times);
+    const parser2 = take_until(digit, .many_times);
+    const parser3 = take_until(digit, .at_least_once);
+    const parser4 = take_until(digit, .{ .range = .{ 0, 2 } });
 
     const result = parser.run("hello0world");
     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "0world")), result);
 
-    const result2 = parser2.run("hello0world");
-    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "0world")), result2);
+    const result2 = parser.run("0world");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("", "0world")), result2);
+
+    const result3 = parser2.run("hello0world");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "0world")), result3);
+
+    const result4 = parser3.run("hello0world");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("hello", "0world")), result4);
+
+    const result5 = parser3.run("h0world");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("h", "0world")), result5);
+
+    const result6 = parser3.run("0world");
+    try testing.expectEqualDeep(ParseErrorKind{ .unsatify_min_patern = .{ .expected = 1, .actual = 0 } }, result6.err.kind);
+
+    const result7 = parser4.run("hello0world");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("he", "llo0world")), result7);
 }
 
-// test "parsing number and escape ' with \\" {
-//     const char = @import("./chars.zig").char;
-//     // const digit = @import("./chars.zig").digit;
+test "parsing number and escape ' with \\" {
+    const char = @import("./chars.zig").char;
+    // const digit = @import("./chars.zig").digit;
 
-//     const parser = escaped(take_while(std.ascii.isDigit), '\\', char('\''));
+    const parser = escaped(take_while(std.ascii.isDigit, .many_times), '\\', char('\''));
 
-//     const result, _ = parser.run("123");
-//     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123", "")), result);
+    const result = parser.run("123");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123", "")), result);
 
-//     const result2, _ = parser.run("123 ");
-//     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123", "")), result2);
+    const result2 = parser.run("123 ");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123", " ")), result2);
 
-//     const result3, _ = parser.run("123\\'");
-//     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123\\'", "")), result3);
+    const result3 = parser.run("123\\'");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123\\'", "")), result3);
 
-//     const result4, _ = parser.run("123\\'456");
-//     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123\\'456", "")), result4);
+    const result4 = parser.run("123\\'456");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("123\\'456", "")), result4);
 
-//     const result5, _ = parser.run("\\'456");
-//     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("\\'456", "")), result5);
+    const result5 = parser.run("\\'456");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("\\'456", "")), result5);
 
-//     const result6, _ = parser.run("\\'123\\'456");
-//     try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("\\'123\\'456", "")), result6);
+    const result6 = parser.run("\\'123\\'456");
+    try testing.expectEqualDeep(ParseResult([]const u8, []const u8).Ok(Pair([]const u8, []const u8).init("\\'123\\'456", "")), result6);
 
-//     const result7, _ = parser.run("123\\");
-//     try testing.expectEqualDeep(.finished, result7.err.kind);
+    const result7 = parser.run("123\\");
+    try testing.expectEqualDeep(.finished, result7.err.kind);
 
-//     const result8, _ = parser.run("123\\?");
-//     try testing.expectEqualDeep(ParseErrorKind{ .char = .{ .expected = '\'', .actual = '?' } }, result8.err.kind);
-// }
+    const result8 = parser.run("123\\?");
+    try testing.expectEqualDeep(ParseErrorKind{ .char = .{ .expected = '\'', .actual = '?' } }, result8.err.kind);
+}
