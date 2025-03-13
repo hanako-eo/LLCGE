@@ -46,8 +46,8 @@ pub fn callable(comptime Fn: type, comptime parser: anytype) ?Fn {
                 @compileError("the method call cannot be take a 'self'-like argument");
 
             return struct {
-                fn call(input: call_info.params[1].type.?) call_info.return_type.? {
-                    return parser.call(input);
+                fn call(input: call_info.params[1].type.?, allocator: call_info.params[2].type.?) call_info.return_type.? {
+                    return parser.call(input, allocator);
                 }
             }.call;
         }
@@ -117,7 +117,7 @@ pub fn UnionFromParsers(comptime parsers: anytype) type {
     comptime var values: [fields.len]Field = undefined;
 
     for (fields, 0..) |f, i|
-        values[i] = .{ .name = f.name, .type = get_struct_attribute(f.type, ResultTypeParser) };
+        values[i] = .{ .name = f.name, .type = ParserLikeResult(f.type) };
 
     return CreateUnionEnum(values.len, values);
 }

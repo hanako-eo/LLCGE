@@ -24,11 +24,12 @@ pub fn build(b: *std.Build) void {
         },
     };
 
-    _ = b.addModule("parser", .{
+    const module = b.addModule("parser", .{
         .root_source_file = entry_file,
         .target = target,
         .optimize = optimize,
     });
+    add_dependencies(module, &dependencies);
 
     const artifact_lib = if (static) b.addStaticLibrary(.{
         .name = "parser",

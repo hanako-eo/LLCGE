@@ -16,7 +16,7 @@ const Pair = @import("utils").Pair;
 /// Parse only the expected char.
 pub fn char(comptime expected_char: u8) Parser(u8) {
     return Parser(u8).init(struct {
-        pub fn call(input: []const u8) ParseResult(u8, []const u8) {
+        pub fn call(input: []const u8, _: std.mem.Allocator) ParseResult(u8, []const u8) {
             const first_char = input[0];
             if (first_char != expected_char) {
                 return ParseResult(u8, []const u8).Err(.{
@@ -53,7 +53,7 @@ pub fn char_predicate(comptime raw_predicate: anytype) Parser(u8) {
     const predicate = comptime meta.callable(fn (u8) bool, raw_predicate) orelse @compileError("the input predicate must be callable.");
 
     return Parser(u8).init(struct {
-        pub fn call(input: []const u8) ParseResult(u8, []const u8) {
+        pub fn call(input: []const u8, _: std.mem.Allocator) ParseResult(u8, []const u8) {
             const first_char = input[0];
             if (!predicate(first_char)) {
                 return ParseResult(u8, []const u8).Err(.{
@@ -110,26 +110,26 @@ const testing = std.testing;
 test "parsing char" {
     const parser = char('(');
 
-    const result = parser.run("(hello) world!");
+    const result = parser.run("(hello) world!", testing.allocator);
     try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init('(', "hello) world!")), result);
 }
 
 test "parsing one of chars" {
     const parser = one_of(&.{ '(', ')' });
 
-    const result = parser.run("(hello) world!");
+    const result = parser.run("(hello) world!", testing.allocator);
     try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init('(', "hello) world!")), result);
 
-    const result2 = parser.run(")hello( world!");
+    const result2 = parser.run(")hello( world!", testing.allocator);
     try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init(')', "hello( world!")), result2);
 }
 
 test "parsing alpha" {
     const parser = alpha;
 
-    const result = parser.run("hello world!");
+    const result = parser.run("hello world!", testing.allocator);
     try testing.expectEqualDeep(ParseResult(u8, []const u8).Ok(Pair(u8, []const u8).init('h', "ello world!")), result);
 
-    const result2 = parser.run(")hello( world!");
+    const result2 = parser.run(")hello( world!", testing.allocator);
     try testing.expectEqualDeep(ParseErrorKind{ .unexpected = ')' }, result2.err.kind);
 }

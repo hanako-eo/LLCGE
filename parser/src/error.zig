@@ -1,5 +1,4 @@
 const std = @import("std");
-const AllocatorError = std.mem.Allocator.Error;
 
 const types_zig = @import("./utils/types.zig");
 const ExpectationSimple = types_zig.ExpectationSimple;
@@ -22,4 +21,5 @@ pub const ParseErrorKind = union(enum) {
     not_finished: void,
     finished: void,
     unsatify_min_patern: ExpectationSimple(usize),
+    allocator_out_of_memory: void,
 };
