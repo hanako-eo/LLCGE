@@ -1,9 +1,13 @@
 .{
-    .name = "diagnostic",
+    .name = .diagnostic,
     .version = "0.1.0",
+    .minimum_zig_version = "0.14.0",
+    .fingerprint = 0xfa7c888962de3526,
+
     .dependencies = .{
         .utils = .{ .path = "../utils" },
     },
+
     .paths = .{
         "src",
         "build.zig",
