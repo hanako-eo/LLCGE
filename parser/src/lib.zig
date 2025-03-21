@@ -8,12 +8,12 @@ pub const sequence = @import("./sequence.zig");
 
 pub const errors = @import("./error.zig");
 
+pub const meta = @import("./utils/meta.zig");
+
 const ParseError = errors.ParseError;
 const ParseErrorKind = errors.ParseErrorKind;
 
 const Result = @import("./utils/types.zig").Result;
-
-const meta = @import("./utils/meta.zig");
 
 const Pair = @import("utils").Pair;
 

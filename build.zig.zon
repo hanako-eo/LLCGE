@@ -1,0 +1,29 @@
+.{
+    .name = .build_system,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.14.0",
+    .fingerprint = 0x5edf107400b49cd7,
+
+    .workspace = .{
+        .diagnostic = "diagnostic",
+        .llcge = "llcge",
+        .parser = "parser",
+        .utils = "utils",
+    },
+
+    .dependencies = .{
+        .parser = .{ .path = "parser" },
+        .yazap = .{
+            .url = "git+https://github.com/prajwalch/yazap#306d8bf56bed528654977217827fb6ad03621538",
+            .hash = "122019ea78cf9b4c722f2ca532e0104320dac5dbb8eac1bb8c69e5e827aeb411b7ef",
+        },
+    },
+
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+    },
+}
