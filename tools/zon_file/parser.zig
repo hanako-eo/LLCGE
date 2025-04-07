@@ -3,34 +3,45 @@ const Allocator = std.mem.Allocator;
 
 const parser = @import("parser");
 
-const Value = union(enum) {
+const Map = struct {
+    inner: std.StringHashMap(Value),
+
+    // init, append and deinit
+    pub fn init(allocator: Allocator) Map {
+        return Map {
+            .inner = std.StringHashMap(Value).init(allocator),
+        };
+    }
+
+    pub fn append(self: *Map, item: struct { []const u8, Value }) Allocator.Error!void {
+        return self.inner.put(item.@"0", item.@"1");
+    }
+
+    pub fn deinit(self: Map) void {
+        self.inner.deinit();
+    }
+};
+
+pub const Value = union(enum) {
     int: i64,
     @"enum": []const u8,
     string: []const u8,
     object: std.StringHashMap(Value),
 
-    const Self = @This();
-
-    fn into_int(value: i64) Self {
-        return Self{ .int = value };
+    fn into_int(value: i64) Value {
+        return Value{ .int = value };
     }
 
-    fn into_string(value: []const u8) Self {
-        return Self{ .string = value };
+    fn into_string(value: []const u8) Value {
+        return Value{ .string = value };
     }
 
-    fn into_enum(value: struct { u8, []const u8 }) Self {
-        return Self{ .@"enum" = value.@"1" };
+    fn into_enum(value: struct { u8, []const u8 }) Value {
+        return Value{ .@"enum" = value.@"1" };
     }
 
-    fn into_object(list: std.ArrayList(struct { []const u8, Value })) Self {
-        var map = std.StringHashMap(Value).init(list.allocator);
-        for (list.items) |item| {
-            const key, const value = item;
-            map.put(key, value) catch @panic("oom");
-        }
-        list.deinit();
-        return Self{ .object = map };
+    fn into_object(value: Map) Value {
+        return Value{ .object = value.inner };
     }
 };
 
@@ -92,7 +103,7 @@ const integer = parser.branch.choice(.{
 
 const object = parser.sequence.delimited(
     dot.and_then(open_brace),
-    parser.sequence.terminated(parser.alloc.separated_list(
+    parser.alloc.separated_list(
         struct { []const u8, Value },
         parser.sequence.separated_pair(
             whitespaces(parser.sequence.preceded(dot, ident)),
@@ -103,11 +114,12 @@ const object = parser.sequence.delimited(
         .many_times,
         .optional_separation,
         std.ArrayList,
-    ), comma.opt()),
+    ),
     close_brace
 );
 
-pub fn zon_value(input: []const u8, allocator: Allocator) parser.ParseResult(Value, []const u8) {
+const value_parser = parser.Parser(Value).init(parse);
+pub fn parse(input: []const u8, allocator: Allocator) parser.ParseResult(Value, []const u8) {
     return whitespaces(parser.branch.choice(.{
         integer.map(Value, Value.into_int),
         string.map(Value, Value.into_string),
@@ -115,5 +127,3 @@ pub fn zon_value(input: []const u8, allocator: Allocator) parser.ParseResult(Val
         object.map(Value, Value.into_object)
     })).run(input, allocator);
 }
-
-const value_parser = parser.Parser(Value).init(zon_value);
