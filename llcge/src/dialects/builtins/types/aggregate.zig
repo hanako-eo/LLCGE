@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const Context = @import("../../../context.zig");
 const Type = @import("../../../ir/type.zig");
 
 const Field = struct {
@@ -21,7 +22,7 @@ allocator: Allocator,
 
 const Self = @This();
 
-pub fn init(types: []const Type, option: Option, allocator: Allocator) !Self {
+pub fn init(_: *const Context, types: []const Type, option: Option, allocator: Allocator) !Self {
     const is_alignment_set = option.alignment != null;
 
     var fields = try allocator.alloc(Field, types.len);

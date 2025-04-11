@@ -6,4 +6,4 @@ pub const Function = @import("./ir/function.zig");
 pub const Global = @import("./ir/global.zig");
 pub const Instruction = @import("./ir/instruction.zig");
 pub const Module = @import("./ir/module.zig");
-pub const Type = @import("./ir/types.zig").Type;
+pub const Type = @import("./ir/type.zig");

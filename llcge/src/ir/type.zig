@@ -1,6 +1,8 @@
 const std = @import("std");
-const meta = @import("../meta.zig");
 const Allocator = std.mem.Allocator;
+
+const meta = @import("../meta.zig");
+const Context = @import("../context.zig");
 
 pub const Alignment = enum(u64) {
     @"0" = 1 << 0,
@@ -88,19 +90,20 @@ const VTable = struct {
     deinit: ?*const fn (self: *const anyopaque) void,
 };
 
-pub fn init(comptime T: type, args: std.meta.ArgsTuple(@TypeOf(T.init)), allocator: Allocator) anyerror!Self {
-    const ptr = try allocator.create(T);
+// `meta.tuple_remove_from_indices` is used to remove `TargetMachine` of the first args.
+pub fn init(comptime T: type, context: *const Context, args: meta.tuple_remove_from_indices(std.meta.ArgsTuple(@TypeOf(T.init)), &.{ 0 })) anyerror!Self {
+    const ptr = try context.allocator.create(T);
     const init_type = @typeInfo(@TypeOf(T.init)).@"fn";
     if (@typeInfo(init_type.return_type.?) == .error_union) {
-        ptr.* = try @call(.auto, T.init, args);
+        ptr.* = try @call(.auto, T.init, meta.merge_tuples(.{ context }, args));
     } else {
-        ptr.* = @call(.auto, T.init, args);
+        ptr.* = @call(.auto, T.init, meta.merge_tuples(.{ context }, args));
     }
 
     return Self {
         .ty = T,
         .ptr = ptr,
-        .allocator = allocator,
+        .allocator = context.allocator,
         .vtable = &.{
             .align_of = meta.vtable_method(T, &T.align_of),
             .size_of = meta.vtable_method(T, &T.size_of),

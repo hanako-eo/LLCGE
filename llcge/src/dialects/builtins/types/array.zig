@@ -1,11 +1,12 @@
-const Type = @import("../../type.zig");
+const Context = @import("../../../context.zig");
+const Type = @import("../../../ir/type.zig");
 
 child: Type,
 size: usize,
 
 const Self = @This();
 
-pub fn init(child: Type, size: usize) Self {
+pub fn init(_: *const Context, child: Type, size: usize) Self {
     return Self {
         .child = child,
         .size = size,

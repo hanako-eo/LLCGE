@@ -1,6 +1,8 @@
+const Context = @import("../../../context.zig");
+
 const Self = @This();
 
-pub fn init() Self {
+pub fn init(_: *const Context) Self {
     return Self {}; 
 }
 

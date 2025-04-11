@@ -1,4 +1,6 @@
 const std = @import("std");
+
+const Context = @import("../../../context.zig");
 const Type = @import("../../../ir/type.zig");
 
 size: u16,

@@ -1,1 +1,1 @@
-const types = @import("./builtins/type.zig");
+const types = @import("./builtins/types.zig");
