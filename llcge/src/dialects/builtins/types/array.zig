@@ -7,10 +7,10 @@ size: usize,
 const Self = @This();
 
 pub fn init(_: *const Context, child: Type, size: usize) Self {
-    return Self {
+    return Self{
         .child = child,
         .size = size,
-    }; 
+    };
 }
 
 pub fn align_of(self: Self) usize {

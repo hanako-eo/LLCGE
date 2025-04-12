@@ -27,10 +27,10 @@ pub const I128 = Type.static_init(Self, &Self.init(.signed, 128));
 pub const U128 = Type.static_init(Self, &Self.init(.unsigned, 128));
 
 pub fn init(_: *const Context, signed: Signedness, bits: u16) Self {
-    return Self {
+    return Self{
         .signed = if (bits == 1) .signless else signed,
         .bits = bits,
-    }; 
+    };
 }
 
 /// Return the alignement of an int (it's the same as the size)

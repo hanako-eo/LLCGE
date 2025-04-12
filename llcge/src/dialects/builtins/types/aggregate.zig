@@ -22,14 +22,14 @@ allocator: Allocator,
 
 const Self = @This();
 
-pub fn init(_: *const Context, types: []const Type, option: Option, allocator: Allocator) !Self {
+pub fn init(context: *const Context, types: []const Type, option: Option) !Self {
     const is_alignment_set = option.alignment != null;
 
-    var fields = try allocator.alloc(Field, types.len);
+    var fields = try context.allocator.alloc(Field, types.len);
     var alignment = @intFromEnum(option.alignment orelse if (types.len == 0) Type.Alignment.@"0" else types[0].align_of());
     var o = 0;
     for (types, 0..) |ty, i| {
-        fields[i] = Field {
+        fields[i] = Field{
             .ty = ty,
             .offset = o,
         };
@@ -43,13 +43,13 @@ pub fn init(_: *const Context, types: []const Type, option: Option, allocator: A
             alignment = @max(alignment, @intFromEnum(ty.align_of()));
         }
     }
-    
 
-    return Self {
+    return Self{
         .fields = fields,
         .is_packed = option.is_packed,
         .alignment = @enumFromInt(alignment),
-    }; 
+        .allocator = context.allocator,
+    };
 }
 
 pub fn deinit(self: Self) void {

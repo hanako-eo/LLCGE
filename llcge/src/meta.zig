@@ -11,12 +11,12 @@ pub fn tuple_remove_from_indices(comptime T: type, comptime indices: []const usi
     for (type_info.@"struct".fields, 0..) |field, i| {
         if (utils.mem.binary_search(usize, indices, i) != null)
             continue;
-        
+
         fields[j] = field;
         j += 1;
     }
 
-    return @Type(std.builtin.Type {
+    return @Type(std.builtin.Type{
         .@"struct" = .{
             .layout = .auto,
             .fields = fields,
@@ -38,14 +38,14 @@ pub fn merge_tuples(first: anytype, second: anytype) MergedTuples(@TypeOf(first)
 
     inline for (@typeInfo(U).@"struct".fields, @typeInfo(T).@"struct".fields.len..) |field, i| {
         var num_buf: [128]u8 = undefined;
-        const field_name = std.fmt.bufPrintZ(&num_buf, "{d}", .{ i }) catch unreachable;
+        const field_name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch unreachable;
         @field(value, field_name) = @field(second, field.name);
     }
 
     return value;
 }
 
-fn MergedTuples(comptime T: type , comptime U: type) type {
+fn MergedTuples(comptime T: type, comptime U: type) type {
     const T_info = @typeInfo(T);
     if (T_info != .@"struct")
         @compileError("T must be a struct.");
@@ -60,7 +60,7 @@ fn MergedTuples(comptime T: type , comptime U: type) type {
     for (U_info.@"struct".fields, T_info.@"struct".fields.len..) |field, i| {
         var num_buf: [128]u8 = undefined;
         fields[i] = .{
-            .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{ i }) catch field.name,
+            .name = std.fmt.bufPrintZ(&num_buf, "{d}", .{i}) catch field.name,
             .type = field.type,
             .default_value_ptr = null,
             .is_comptime = false,
@@ -90,7 +90,7 @@ fn cast_anyopaque_fn(comptime T: type, comptime func: type) type {
     const fn_info = @typeInfo(func);
     if (fn_info != .@"fn")
         @compileError("the second argument must be a function.");
-    
+
     comptime var params: [fn_info.@"fn".params.len]std.builtin.Type.Fn.Param = undefined;
     for (fn_info.@"fn".params, 0..) |param, i| {
         params[i] = .{
@@ -100,7 +100,7 @@ fn cast_anyopaque_fn(comptime T: type, comptime func: type) type {
         };
     }
 
-    return @Type(std.builtin.Type {
+    return @Type(std.builtin.Type{
         .@"fn" = .{
             .calling_convention = fn_info.@"fn".calling_convention,
             .is_generic = fn_info.@"fn".is_generic,

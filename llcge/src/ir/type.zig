@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const utils = @import("utils");
 
 const meta = @import("../meta.zig");
 const Context = @import("../context.zig");
@@ -71,8 +72,8 @@ pub const Alignment = enum(u64) {
     @"63" = 1 << 63,
 };
 
-/// Internal type the type used to help to downcast the ptr.
-ty: type,
+/// Id of the type of ptr, it uses to downcast ptr in the method `try_downcast`.
+type_id: utils.TypeId,
 /// Allocator used to store the ptr, if the allocator is set to null, it means
 /// the ptr point to a static pointer or managed by the user it-self.
 allocator: ?Allocator,
@@ -91,17 +92,17 @@ const VTable = struct {
 };
 
 // `meta.tuple_remove_from_indices` is used to remove `TargetMachine` of the first args.
-pub fn init(comptime T: type, context: *const Context, args: meta.tuple_remove_from_indices(std.meta.ArgsTuple(@TypeOf(T.init)), &.{ 0 })) anyerror!Self {
+pub fn init(comptime T: type, context: *const Context, args: meta.tuple_remove_from_indices(std.meta.ArgsTuple(@TypeOf(T.init)), &.{0})) anyerror!Self {
     const ptr = try context.allocator.create(T);
     const init_type = @typeInfo(@TypeOf(T.init)).@"fn";
     if (@typeInfo(init_type.return_type.?) == .error_union) {
-        ptr.* = try @call(.auto, T.init, meta.merge_tuples(.{ context }, args));
+        ptr.* = try @call(.auto, T.init, meta.merge_tuples(.{context}, args));
     } else {
-        ptr.* = @call(.auto, T.init, meta.merge_tuples(.{ context }, args));
+        ptr.* = @call(.auto, T.init, meta.merge_tuples(.{context}, args));
     }
 
-    return Self {
-        .ty = T,
+    return Self{
+        .type_id = utils.meta.typeId(T),
         .ptr = ptr,
         .allocator = context.allocator,
         .vtable = &.{
@@ -114,8 +115,8 @@ pub fn init(comptime T: type, context: *const Context, args: meta.tuple_remove_f
 }
 
 pub fn static_init(comptime T: type, ptr: *const T) Self {
-    return Self {
-        .ty = T,
+    return Self{
+        .type_id = utils.meta.typeId(T),
         .ptr = ptr,
         .allocator = null,
         .vtable = &.{
@@ -147,17 +148,17 @@ pub fn size_of(self: Self) usize {
 pub fn is_same(self: Self, other: Self) usize {
     // this mean that the given type not base on the same type like doing
     // `i8.is_same(ptr)`
-    if (self.ty != other.ty)
+    if (self.type_id != other.type_id)
         return false;
 
     // is_same can be called safely because we ensure that *anyopaque is a ptr
-    // to the same type 
+    // to the same type
     return self.vtable.is_same(self.ptr, other.ptr);
 }
 
 pub fn try_downcast(self: Self, comptime T: type) ?*const T {
-    if (self.ty == T)
+    if (self.type_id == utils.meta.typeId(T))
         return @as(*const T, self.ptr);
-    
+
     return null;
 }

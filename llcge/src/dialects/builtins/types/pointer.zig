@@ -3,7 +3,7 @@ const Context = @import("../../../context.zig");
 const Self = @This();
 
 pub fn init(_: *const Context) Self {
-    return Self {}; 
+    return Self{};
 }
 
 pub fn align_of(_: Self) usize {
