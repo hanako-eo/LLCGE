@@ -1,62 +1,34 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const utils = @import("utils");
 
-const Error = @import("./error.zig").Error;
 
-const Type = @import("./types.zig").Type;
-const FunctionType = @import("./types/function.zig");
+const Block = @import("./block.zig");
+const Context = @import("../context.zig");
 
-const Constant = @import("./value.zig").Constant;
-const Function = @import("./function.zig");
-const Global = @import("./global.zig");
-
-allocator: Allocator,
+context: *const Context,
 source: ?[]const u8,
 
-globals: std.StringHashMap(Global),
-functions: std.StringHashMap(Function),
+body: Block,
 
 const Self = @This();
 
-pub fn init(allocator: Allocator) Self {
-    return Self{
-        .allocator = allocator,
-        .source = null,
-        .globals = std.StringHashMap(Global).init(allocator),
-        .functions = std.StringHashMap(Function).init(allocator),
-    };
-}
-
-pub fn init_from_source(allocator: Allocator, source: []const u8) Self {
-    return Self{
-        .allocator = allocator,
+pub fn init(source: ?[]const u8, context: *const Context) !utils.mem.Bin(Self) {
+    var self = try utils.mem.Bin(Self).init(Self{
+        .context = context,
         .source = source,
-        .globals = std.StringHashMap(Global).init(allocator),
-        .functions = std.StringHashMap(Function).init(allocator),
-    };
+        .body = undefined,
+    }, context.allocator);
+    
+    try self.ptr.body.new(Self, self, &.{}, context);
+
+    return self;
 }
 
 pub fn deinit(self: *Self) void {
-    var it = self.functions.valueIterator();
-    while (it.next()) |function| {
-        function.deinit();
-    }
-    self.functions.deinit();
-    self.globals.deinit();
+    self.body.deinit();
 }
 
-pub fn create_global(self: *Self, name: []const u8, is_constant: bool, @"type": Type, value: Constant) Error!*Global {
-    if (self.globals.contains(name))
-        return Error.AlreadyDefine;
-
-    const entry = try self.globals.getOrPutValue(name, Global.init(self, name, is_constant, @"type", value));
-    return entry.value_ptr;
-}
-
-pub fn create_function(self: *Self, name: []const u8, return_type: Type) Error!*Function {
-    if (self.functions.contains(name))
-        return Error.AlreadyDefine;
-
-    const entry = try self.functions.getOrPutValue(name, Function.init(self, return_type));
-    return entry.value_ptr;
+pub fn builder(self: *Self) Block.Builder {
+    return self.body.builder();
 }

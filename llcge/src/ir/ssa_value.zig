@@ -13,25 +13,33 @@ pub const Use = struct {
 
 /// Id of the type of ptr, it uses to downcast ptr in the method `try_downcast`.
 type_id: utils.TypeId,
-type: Type,
-
 /// Pointer to the real data that contain all useful data of the type.
 ptr: *anyopaque,
+
+index: usize,
+type: Type,
+// TODO: transform Use into weak ptr ?
 // std.AutoArrayHashMap is used to make something like an HashSet (not the best).
 uses: std.AutoArrayHashMap(Use, void),
 
 const Self = @This();
 
-pub fn init(comptime T: type, ptr: *T, ty: Type, allocator: Allocator) Self {
+pub fn init(comptime T: type, ptr: *T, ty: Type, index: usize, allocator: Allocator) Self {
     return Self{
         .ty = utils.meta.typeId(T),
         .ptr = @ptrCast(ptr),
+        .index = index,
         .type = ty,
         .uses = std.AutoArrayHashMap(Use, void).init(allocator),
     };
 }
 
-pub fn add_use(self: Self, ptr: anytype) void {
+pub fn deinit(self: *Self) void {
+    self.type.deinit();
+    self.uses.deinit();
+}
+
+pub fn add_use(self: *Self, ptr: anytype) void {
     const ptr_info = @typeInfo(@TypeOf(ptr));
     if (ptr_info != .pointer)
         @compileError("op must be a pointer.");
@@ -42,7 +50,7 @@ pub fn add_use(self: Self, ptr: anytype) void {
     }, void{});
 }
 
-pub fn remove_use(self: Self, ptr: anytype) void {
+pub fn remove_use(self: *Self, ptr: anytype) void {
     const ptr_info = @typeInfo(@TypeOf(ptr));
     if (ptr_info != .pointer)
         @compileError("op must be a pointer.");
