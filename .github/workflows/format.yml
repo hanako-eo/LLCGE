@@ -1,0 +1,16 @@
+name: Formatting check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  formating_check:
+    name: Code Formating Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: master
+      - run: zig fmt . --check

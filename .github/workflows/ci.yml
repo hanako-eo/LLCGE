@@ -1,0 +1,25 @@
+name: Build and Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Running Tests
+    strategy:
+      fail-fast: false
+      matrix:
+        action:
+          - name: debug test
+            command: test --verbose
+          - name: fast release test
+            command: test --verbose --release=fast
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: master
+      - name: Run ${{ matrix.action.name }}
+        run: zig build ${{ matrix.action.command }}
