@@ -1,8 +1,8 @@
 .{
     .name = .parser,
     .version = "0.1.0",
-    .minimum_zig_version = "0.14.0",
-    .fingerprint = 0x2fb2c373df3b72ed,
+    .minimum_zig_version = "0.15.2",
+    .fingerprint = 0x2fb2c373654de826,
 
     .dependencies = .{
         .utils = .{ .path = "../utils" },
